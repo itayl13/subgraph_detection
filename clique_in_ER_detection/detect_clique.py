@@ -1,12 +1,14 @@
 import numpy as np
 import pickle
 import os
+from operator import itemgetter
 
 
 class DetectClique:
 
     def __init__(self, graph, matrix, labels, dir_path):
         self._graph = graph
+        self._vertices = len(list(self._graph.nodes))
         self._motif_matrix = matrix
         self._labels = labels
         self._dir_path = dir_path
@@ -35,7 +37,8 @@ class DetectClique:
         # vec_dist_score_label =
         # [(n, dists[n], self.score(scaled_matrix[n]), self._labels[n]) for n in range(len(dists))]
         vertex_angle = [(v, self.angle(scaled_matrix[v, :], expected_scaled)) for v in range(scaled_matrix.shape[0])]
-        irregulars = [v[0] for v in vertex_angle if (v[1] < 0.5)]
+        vertex_angle.sort(key=itemgetter(1))
+        irregulars = [v[0] for v in vertex_angle[0:int(np.sqrt(self._vertices))]]
         return irregulars
 
     @staticmethod

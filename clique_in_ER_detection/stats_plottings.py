@@ -36,7 +36,6 @@ class StatsPlot:
         non_clique_mean = np.mean(non_clique_matrix, axis=0)
         self._plot_log_ratio(clique_mean, non_clique_mean, (clique_ax, non_clique_ax),
                              expected_clique, expected_non_clique, motifs)
-        plt.grid()
         plt.savefig(os.path.join(os.getcwd(), 'graph_plots', self._key_name + '_log_ratio.png'))
 
     @staticmethod
@@ -55,12 +54,13 @@ class StatsPlot:
         ax[0].plot(ind, [np.log(ec[i] / cm[i]) for i in ind], 'o')
         ax[1].plot(ind, [np.log(enc[i] / ncm[i]) for i in ind], 'o')
         ax[0].set_title('log(expected / < seen >) for clique vertices')
-        ax[0].set_title('log(expected / < seen >) for non-clique vertices')
+        ax[1].set_title('log(expected / < seen >) for non-clique vertices')
         for i in range(2):
             ax[i].set_xticks(ind)
             ax[i].set_xticklabels(motifs)
             for tick in ax[i].xaxis.get_major_ticks():
                 tick.label.set_fontsize(8)
+            ax[i].grid()
 
     def various_probabilities(self, motifs):
         # Assuming that I run for p = 0.1 to 0.9, with a step of 0.1.
@@ -121,5 +121,6 @@ class StatsPlot:
 
 
 if __name__ == "__main__":
-    sp = StatsPlot(50, 0.5, 10, True)
-    sp.prob_i_clique_vertices_comparison()
+    sp = StatsPlot(100, 0.5, 8, True)
+    mp = MotifProbability(100, 0.5, 8, True)
+    sp.motif_stats(mp.get_3_clique_motifs(3) + mp.get_3_clique_motifs(4))

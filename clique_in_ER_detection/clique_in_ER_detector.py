@@ -6,9 +6,9 @@ import os
 class CliqueInERDetector:
     def __init__(self):
         self._params = {
-            'vertices': 50,
+            'vertices': 100,
             'probability': 0.5,
-            'clique_size': 10,
+            'clique_size': 8,
             'directed': True,
             'load_graph': False,
             'load_labels': False,
