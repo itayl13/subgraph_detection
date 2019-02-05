@@ -142,55 +142,55 @@ class MotifProbability:
         prob = self.motif_probability_non_clique_vertex(motif_index)
         return comb(self._size - 1, to_choose - 1) * prob
 
-    def _second_condition(self, original_number, flag, num_max, i):
-        # Whether 1 is a clique vertex. If not, it must be removed from the isomorphic variations.
-        bitnum = np.binary_repr(original_number, num_max)
-        if not self._is_directed:
+    @staticmethod
+    def _second_condition(binary_motif, clique_edges):
+        return all([int(binary_motif[i]) for i in clique_edges])
+
+    def _clique_edges(self, flag, i):
+        if self._is_directed:
             if flag == 3:
-                indices = [1, 2]
+                if i == 0:
+                    return []
+                elif i == 1:
+                    return [0, 2]
+                else:
+                    return [i for i in range(6)]
             else:
-                indices = [3, 4, 5]
+                if i == 0:
+                    return []
+                elif i == 1:
+                    return [0, 3]
+                elif i == 2:
+                    return [0, 1, 3, 4, 5, 6]
+                else:
+                    return [i for i in range(12)]
         else:
             if flag == 3:
-                indices = [1, 4, 3, 5]
-            else:
-                indices = [2, 9, 5, 10, 8, 11]
-        if i == 0:
-            return True
-        elif i == 1:
-            if self._is_directed:
-                if any([int(bitnum[indices[2 * i]]) * int(bitnum[indices[2 * i + 1]]) for i in
-                        range(int(len(indices) / 2))]):
-                    return True
-            else:
-                if any([int(bitnum[i]) for i in indices]):
-                    return True
-        elif i == 2:
-            if flag == 3:
-                if all([int(bitnum[i]) for i in range(len(bitnum))]):
-                    return True
-            else:
-                if self._is_directed:
-                    if any([all([int(bitnum[n]) for n in [8, 11, 5, 10, 4, 7]]),
-                            all([int(bitnum[n]) for n in [5, 10, 2, 9, 0, 3]]),
-                            all([int(bitnum[n]) for n in [8, 11, 2, 9, 1, 6]])]):
-                        return True
+                if i == 0:
+                    return []
+                elif i == 1:
+                    return [0]
                 else:
-                    if any([all([int(bitnum[n]) for n in [2, 4, 5]]),
-                            all([int(bitnum[n]) for n in [1, 3, 5]]),
-                            all([int(bitnum[n]) for n in [0, 1, 2]])]):
-                        return True
-        elif i == 3:
-            if all([int(bitnum[i]) for i in range(len(bitnum))]):
-                return True
-        return False
+                    return [i for i in range(3)]
+            else:
+                if i == 0:
+                    return []
+                elif i == 1:
+                    return [0]
+                elif i == 2:
+                    return [0, 1, 2]
+                else:
+                    return [i for i in range(6)]
 
     def _specific_combination_motif_probability(self, motif_index, num_edges, num_max, flag, variations, i):
         # flag * comb(flag - 1, i) * factorial(flag - i)  IS NOT WORKING
+        clique_edges = self._clique_edges(flag, i)
         motifs = []
         for original_number in variations.keys():
-            if variations[original_number] == motif_index and self._second_condition(original_number, flag, num_max, i):
-                motifs.append(np.binary_repr(original_number, num_max))
+            if variations[original_number] == motif_index:
+                b = np.binary_repr(original_number, num_max)
+                if self._second_condition(b, clique_edges):
+                    motifs.append(b)
         num_iso = len(motifs)
         num_already_there = (i + 1) * i if self._is_directed else (i + 1) * i / 2
         return num_iso * self._probability ** (num_edges - num_already_there) * (
@@ -218,7 +218,7 @@ class MotifProbability:
             spec_comb_motif_prob = self._specific_combination_motif_probability(
                 motif_ind, num_edges, num_max, flag, variations, i)
 
-            clique_non_clique.append(cl_ncl_comb_prob * spec_comb_motif_prob * indicator)
+            clique_non_clique.append(cl_ncl_comb_prob * spec_comb_motif_prob)
         prob = sum(clique_non_clique)
         return prob
 

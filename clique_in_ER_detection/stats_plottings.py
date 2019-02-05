@@ -1,12 +1,8 @@
-import itertools
-import pandas as pd
+from scipy.special import comb
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.special import comb
 import pickle
-import csv
-import networkx as nx
 from motif_probability import MotifProbability
 
 
@@ -19,6 +15,7 @@ class StatsPlot:
         self._key_name = 'n_' + str(self._vertices) + '_p_' + str(self._probability) + '_size_' + str(
                                     self._clique_size) + ('_d' if self._directed else '_ud')
         self._pkl_path = os.path.join(os.getcwd(), 'graph_calculations', 'pkl', self._key_name)
+        self._gnx = pickle.load(open(os.path.join(self._pkl_path, 'gnx.pkl'), 'rb'))
         self._labels = pickle.load(open(os.path.join(self._pkl_path, 'labels.pkl'), 'rb'))
 
     def motif_stats(self, motifs):
@@ -93,8 +90,30 @@ class StatsPlot:
             plt.xlabel('Probability')
             plt.ylabel('Appearances')
             plt.grid()
-            plt.savefig(os.path.join(os.getcwd(), 'graph_plots', 'probabilities_' + str(motifs[m]) + '.png'))
+            plt.savefig(os.path.join(os.getcwd(), 'graph_plots', 'probabilities_run_motif_' + str(motifs[m]) + '.png'))
             plt.figure()
 
-
-
+    def prob_i_clique_vertices_comparison(self):
+        mp = MotifProbability(self._vertices, self._probability, self._clique_size, self._directed)
+        # a list of [[n_motif3_i=0, .., ..], [n_motif4_i=0, .., .., ..]] for all clique vertices
+        vertex_counter = mp.prob_i_clique_verts_check(self._pkl_path)
+        motif3all = [[v_counter[0][i] / sum(v_counter[0]) for i in range(3)] for v_counter in vertex_counter]
+        motif4all = [[v_counter[1][i] / sum(v_counter[1]) for i in range(4)] for v_counter in vertex_counter]
+        motif3mean = np.mean(np.array(motif3all), axis=0)
+        motif4mean = np.mean(np.array(motif4all), axis=0)
+        motif3theory = [comb(max(self._clique_size - 1, 0), i) * comb(self._vertices - max(self._clique_size, 1), 2 - i)
+                        / comb(self._vertices - 1, 2) for i in range(3)]
+        motif4theory = [comb(max(self._clique_size - 1, 0), i) * comb(self._vertices - max(self._clique_size, 1), 3 - i)
+                        / comb(self._vertices - 1, 3) for i in range(4)]
+        motifs_seen = np.hstack((motif3mean, motif4mean))
+        motifs_expected = np.hstack((motif3theory, motif4theory))
+        fig, ax = plt.subplots()
+        ax.plot(np.arange(len(motifs_expected)),
+                [np.log(expected / seen) for expected, seen in zip(motifs_expected, motifs_seen)], 'ro')
+        ax.set_title('log(expected / seen) for expected and seen of P(i clique vertices)')
+        ax.set_xticks(np.arange(7))
+        ax.set_xticklabels(['i=' + str(i) + ', motif 3' for i in range(2)] +
+                           ['i=' + str(i) + ', motif 4' for i in range(3)])
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(8)
+        plt.savefig(os.path.join(os.getcwd(), 'graph_plots', 'prob_i_clique_vertices.png'))
