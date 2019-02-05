@@ -110,10 +110,16 @@ class StatsPlot:
         fig, ax = plt.subplots()
         ax.plot(np.arange(len(motifs_expected)),
                 [np.log(expected / seen) for expected, seen in zip(motifs_expected, motifs_seen)], 'ro')
-        ax.set_title('log(expected / seen) for expected and seen of P(i clique vertices)')
+        ax.set_title('log(expected / seen) for P(i clique vertices)')
         ax.set_xticks(np.arange(7))
-        ax.set_xticklabels(['i=' + str(i) + ', motif 3' for i in range(2)] +
-                           ['i=' + str(i) + ', motif 4' for i in range(3)])
+        ax.set_xticklabels(['i=' + str(i) + ', motif 3' for i in range(3)] +
+                           ['i=' + str(i) + ', motif 4' for i in range(4)])
         for tick in ax.xaxis.get_major_ticks():
             tick.label.set_fontsize(8)
+        plt.grid()
         plt.savefig(os.path.join(os.getcwd(), 'graph_plots', 'prob_i_clique_vertices.png'))
+
+
+if __name__ == "__main__":
+    sp = StatsPlot(50, 0.5, 10, True)
+    sp.prob_i_clique_vertices_comparison()
