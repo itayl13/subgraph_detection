@@ -4,10 +4,11 @@ import pickle
 from scipy.special import comb
 import networkx as nx
 from itertools import combinations, permutations
+import csv
 
 
 class MotifProbability:
-    def __init__(self, size, edge_probability, clique_size, directed):
+    def __init__(self, size, edge_probability: float, clique_size, directed):
         self._is_directed = directed
         self._size = size
         self._probability = edge_probability
@@ -20,8 +21,7 @@ class MotifProbability:
 
     def _build_variations(self):
         name3 = "3_%sdirected.pkl" % ("" if self._is_directed else "un")
-        variations_path = os.path.join(os.path.dirname(__file__), 'motif_vectors_distances',
-                                       'graphs-package-master', 'graph-measures', 'features_algorithms',
+        variations_path = os.path.join(os.path.dirname(__file__), 'graph_measures', 'features_algorithms',
                                        'motif_variations')
         path3 = os.path.join(variations_path, name3)
         self._motif3_variations = pickle.load(open(path3, "rb"))
@@ -147,6 +147,7 @@ class MotifProbability:
         return all([int(binary_motif[i]) for i in clique_edges])
 
     def _clique_edges(self, flag, i):
+        # Given i clique motifs (plus one we focus on) in fixed indices, get the edges that must appear in the motif.
         if self._is_directed:
             if flag == 3:
                 if i == 0:
@@ -161,7 +162,7 @@ class MotifProbability:
                 elif i == 1:
                     return [0, 3]
                 elif i == 2:
-                    return [0, 1, 3, 4, 5, 6]
+                    return [0, 1, 3, 4, 6, 7]
                 else:
                     return [i for i in range(12)]
         else:
@@ -178,12 +179,12 @@ class MotifProbability:
                 elif i == 1:
                     return [0]
                 elif i == 2:
-                    return [0, 1, 2]
+                    return [0, 1, 3]
                 else:
                     return [i for i in range(6)]
 
     def _specific_combination_motif_probability(self, motif_index, num_edges, num_max, flag, variations, i):
-        # flag * comb(flag - 1, i) * factorial(flag - i)  IS NOT WORKING
+        # P(motif|i clique vertices except for the vertex on which we focus)
         clique_edges = self._clique_edges(flag, i)
         motifs = []
         for original_number in variations.keys():
@@ -199,7 +200,7 @@ class MotifProbability:
     def motif_probability_clique_vertex(self, motif_index):
         motif_ind, variations, num_edges, num_max, flag = self._for_probability_calculation(motif_index)
         clique_non_clique = []
-        for i in range(flag - 1 if self._cl_size > 1 else 1):
+        for i in range(flag if self._cl_size > 1 else 1):
             # Probability that a specific set of vertices contains exactly i + 1 clique vertices.
             if i == 1:
                 indicator = 1 if motif_index in self.get_2_clique_motifs(flag) else 0
@@ -213,7 +214,7 @@ class MotifProbability:
                 clique_non_clique.append(0)
                 continue
             cl_ncl_comb_prob = comb(max(self._cl_size - 1, 0), i) * comb(self._size - max(self._cl_size, 1),
-                                                                         flag - 1 - i) / (
+                                                                         flag - 1 - i) / float(
                                    comb(self._size - 1, flag - 1))
             spec_comb_motif_prob = self._specific_combination_motif_probability(
                 motif_ind, num_edges, num_max, flag, variations, i)
@@ -258,9 +259,29 @@ class MotifProbability:
         combos = combinations(rest_of_the_nodes, 3)
         return [[combo[i] for i in range(len(combo))] + [root] for combo in combos]
 
+    def check_second_probability(self, motif_index):
+        motif_ind, variations, num_edges, num_max, flag = self._for_probability_calculation(motif_index)
+        f = open(os.path.join(os.path.dirname(__file__), '..', 'graph_other_files', 'motif_' + str(motif_index) +
+                              '_second_probability_check.csv'), 'w')
+        w = csv.writer(f)
+        w.writerow(['i', 'num_edges', 'num_isomorphisms', 'num_edges_from_clique_vertices', 'max_edge_num'])
+        for i in range(flag):
+            clique_edges = self._clique_edges(flag, i)
+            motifs = []
+            for original_number in variations.keys():
+                if variations[original_number] == motif_ind:
+                    b = np.binary_repr(original_number, num_max)
+                    if self._second_condition(b, clique_edges):
+                        motifs.append(b)
+            num_iso = len(motifs)
+            num_already_there = (i + 1) * i if self._is_directed else (i + 1) * i / 2
+            w.writerow([i, num_edges, num_iso, num_already_there, num_max])
+        f.close()
+
 
 if __name__ == "__main__":
     mp = MotifProbability(250, 0.5, 10, True)
     for motif in mp.get_3_clique_motifs(3) + mp.get_3_clique_motifs(4):
         print("Non clique: %s , Clique: %s" %
               (mp.motif_expected_non_clique_vertex(motif), mp.motif_expected_clique_vertex(motif)))
+        # mp.check_second_probability(motif)

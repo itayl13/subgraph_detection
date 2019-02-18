@@ -3,7 +3,12 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle
-from motif_probability import MotifProbability
+try:
+    from motif_probability import MotifProbability
+    from graph_builder import GraphBuilder, MotifCalculator
+except ModuleNotFoundError:
+    from clique_in_ER_detection.graph_calculations.motif_probability import MotifProbability
+    from clique_in_ER_detection.graph_builder import GraphBuilder, MotifCalculator
 
 
 class StatsPlot:
@@ -40,13 +45,16 @@ class StatsPlot:
 
     @staticmethod
     def _to_matrix(motif_features):
-        rows = len(motif_features.keys())
-        columns = len(motif_features[0].keys()) - 1
-        final_mat = np.zeros((rows, columns))
-        for i in range(rows):
-            for j in range(columns):
-                final_mat[i, j] = motif_features[i][j]
-        return final_mat
+        if type(motif_features) == dict:
+            rows = len(motif_features.keys())
+            columns = len(motif_features[0].keys()) - 1
+            final_mat = np.zeros((rows, columns))
+            for i in range(rows):
+                for j in range(columns):
+                    final_mat[i, j] = motif_features[i][j]
+            return final_mat
+        else:
+            return np.asarray(motif_features, dtype=float)
 
     @staticmethod
     def _plot_log_ratio(cm, ncm, ax, ec, enc, motifs):
@@ -119,8 +127,37 @@ class StatsPlot:
         plt.grid()
         plt.savefig(os.path.join(os.getcwd(), 'graph_plots', 'prob_i_clique_vertices.png'))
 
+    def multiple_runs(self, num_runs, motifs):
+        pkl_path = os.path.join(self._pkl_path, '..')
+        run_dir = os.path.join(pkl_path, self._key_name + '_runs')
+        if not os.path.exists(run_dir):
+            os.mkdir(run_dir)
+        fig, (clique_ax, non_clique_ax) = plt.subplots(2, 1)
+        fig.subplots_adjust(hspace=0.5)
+        mp = MotifProbability(self._vertices, self._probability, self._clique_size, self._directed)
+        expected_clique = [mp.motif_expected_clique_vertex(motif) for motif in motifs]
+        expected_non_clique = [mp.motif_expected_non_clique_vertex(motif) for motif in motifs]
+        for run in range(num_runs):
+            params = {'vertices': self._vertices, 'probability': self._probability,
+                      'clique_size': self._clique_size, 'directed': self._directed,
+                      'load_graph': False, 'load_labels': False, 'load_motifs': False}
+            dir_path = os.path.join(run_dir, self._key_name + "_run_" + str(run))
+            GraphBuilder(params, dir_path)
+            self._gnx = pickle.load(open(os.path.join(dir_path, 'gnx.pkl'), 'rb'))
+            self._labels = pickle.load(open(os.path.join(dir_path, 'labels.pkl'), 'rb'))
+            mc = MotifCalculator(params, self._gnx, dir_path, gpu=False)
+            motif_matrix = mc.motif_matrix(motif_picking=mc.clique_motifs())
+            clique_matrix = motif_matrix[[v for v in self._labels.keys() if self._labels[v]], :]
+            non_clique_matrix = motif_matrix[[v for v in self._labels.keys() if not self._labels[v]], :]
+            clique_mean = np.mean(clique_matrix, axis=0)
+            non_clique_mean = np.mean(non_clique_matrix, axis=0)
+            self._plot_log_ratio(clique_mean, non_clique_mean, (clique_ax, non_clique_ax),
+                                 expected_clique, expected_non_clique, motifs)
+        plt.savefig(os.path.join(os.getcwd(), 'graph_plots', self._key_name + '_multiple_runs_log_ratio.png'))
+
 
 if __name__ == "__main__":
-    sp = StatsPlot(100, 0.5, 8, True)
-    mp = MotifProbability(100, 0.5, 8, True)
-    sp.motif_stats(mp.get_3_clique_motifs(3) + mp.get_3_clique_motifs(4))
+    sp = StatsPlot(500, 0.5, 15, True)
+    mopro = MotifProbability(500, 0.5, 15, True)
+    sp.motif_stats(mopro.get_3_clique_motifs(3) + mopro.get_3_clique_motifs(4))
+    # sp.multiple_runs(5, mopro.get_3_clique_motifs(3) + mopro.get_3_clique_motifs(4))

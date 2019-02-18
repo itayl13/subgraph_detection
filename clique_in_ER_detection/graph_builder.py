@@ -3,11 +3,18 @@ import numpy as np
 import itertools
 import os
 import pickle
+import datetime
 
-from features_infra.feature_calculators import FeatureMeta
-from features_algorithms.vertices.motifs import nth_nodes_motif
-from motif_probability import MotifProbability
-from graph_features import GraphFeatures
+try:
+    from features_infra.feature_calculators import FeatureMeta
+    from features_algorithms.accelerated_graph_features.motifs import nth_nodes_motif
+    from motif_probability import MotifProbability
+    from graph_features import GraphFeatures
+except ModuleNotFoundError:
+    from graph_calculations.graph_measures.features_infra.feature_calculators import FeatureMeta
+    from graph_calculations.graph_measures.features_algorithms.accelerated_graph_features.motifs import nth_nodes_motif
+    from graph_calculations.motif_probability import MotifProbability
+    from graph_calculations.graph_measures.features_infra.graph_features import GraphFeatures
 
 
 class ER:
@@ -92,22 +99,22 @@ class GraphBuilder:
                 labels[v] = 0 if v not in self._clique_vertices else 1
             self._labels = labels
             pickle.dump(self._labels, open(os.path.join(self._dir_path, 'labels.pkl'), "wb"))
-        print("Built a graph")
+        print(str(datetime.datetime.now()) + " , Built a graph")
 
     def vertices(self):
         return self._gnx.nodes
 
 
 class MotifCalculator:
-    def __init__(self, params, graph, dir_path):
+    def __init__(self, params, graph, dir_path, gpu):
         self._params = params
         self._graph = graph
         self._dir_path = dir_path
         self._clique_motifs = []
         self._motif_mat = None
         self._motif_features = {
-            "motif3": FeatureMeta(nth_nodes_motif(3), {"m3"}),
-            "motif4": FeatureMeta(nth_nodes_motif(4), {"m4"})
+            "motif3": FeatureMeta(nth_nodes_motif(3, gpu=gpu), {"m3"}),
+            "motif4": FeatureMeta(nth_nodes_motif(4, gpu=gpu), {"m4"})
         }
         self._calculate_expected_values()
         self._calculate_motif_matrix()
@@ -125,25 +132,39 @@ class MotifCalculator:
         if self._params["load_motifs"]:
             pkl3 = pickle.load(open(os.path.join(self._dir_path, "motif3.pkl"), "rb"))
             pkl4 = pickle.load(open(os.path.join(self._dir_path, "motif4.pkl"), "rb"))
-            motif3 = np.array(pkl3)
-            motif4 = np.array(pkl4)
-            motif_matrix = np.hstack((motif3, motif4))
-            self._motif_matrix = motif_matrix[:, self._clique_motifs]
+            if type(pkl3) == dict:
+                motif3 = self._to_matrix(pkl3)
+            else:
+                motif3 = np.array(pkl3)
+            if type(pkl4) == dict:
+                motif4 = self._to_matrix(pkl4)
+            else:
+                motif4 = np.array(pkl4)
+            self._motif_matrix = np.hstack((motif3, motif4))
             return
         g_ftrs = GraphFeatures(self._graph, self._motif_features, dir_path=self._dir_path)
         g_ftrs.build(should_dump=True)
-        print("Calculated motifs")
-        self._motif_mat = np.zeros((self._params["vertices"],
-                                    len(g_ftrs['motif3']._all_motifs) + len(g_ftrs['motif4']._all_motifs) - 2))
-        for i in range(self._motif_mat.shape[0]):
-            for j in range(self._motif_mat.shape[1]):
-                if j <= 12:
-                    self._motif_mat[i, j] = g_ftrs['motif3']._features[i][j]
-                else:
-                    self._motif_mat[i, j] = g_ftrs['motif4']._features[i][j - 13]
+        print(str(datetime.datetime.now()) + " , Calculated motifs")
+        self._motif_mat = np.hstack((np.asarray(g_ftrs['motif3']._features), np.asarray(g_ftrs['motif4']._features)))
+
+    @staticmethod
+    def _to_matrix(motif_features):
+        rows = len(motif_features.keys())
+        columns = len(motif_features[0].keys()) - 1
+        final_mat = np.zeros((rows, columns))
+        for i in range(rows):
+            for j in range(columns):
+                final_mat[i, j] = motif_features[i][j]
+        return final_mat
+
+    def clique_motifs(self):
+        return self._clique_motifs
 
     def motif_matrix(self, motif_picking=None):
         if not motif_picking:
             return self._motif_mat
         else:
-            return self._motif_mat[:, motif_picking]
+            try:
+                return self._motif_mat[:, motif_picking]
+            except IndexError:
+                e = 0

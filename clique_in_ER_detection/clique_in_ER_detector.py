@@ -4,24 +4,24 @@ import os
 
 
 class CliqueInERDetector:
-    def __init__(self):
+    def __init__(self, v, p, cs, d):
         self._params = {
-            'vertices': 100,
-            'probability': 0.5,
-            'clique_size': 8,
-            'directed': True,
+            'vertices': v,
+            'probability': p,
+            'clique_size': cs,
+            'directed': d,
             'load_graph': False,
             'load_labels': False,
             'load_motifs': False
         }
-        self._dir_path = os.path.join(os.getcwd(), 'graph_calculations', 'pkl',
+        self._dir_path = os.path.join('graph_calculations', 'pkl',
                                       'n_' + str(self._params["vertices"]) + '_p_' +
                                       str(self._params["probability"]) + '_size_' + str(self._params["clique_size"]) +
                                       ('_d' if self._params["directed"] else '_ud'))
         self._data = GraphBuilder(self._params, self._dir_path)
         self._graph = self._data._gnx
         self._labels = self._data._labels
-        self._motif_calc = MotifCalculator(self._params, self._graph, self._dir_path)
+        self._motif_calc = MotifCalculator(self._params, self._graph, self._dir_path, gpu=True)
         self._motif_matrix = self._motif_calc.motif_matrix(motif_picking=self._motif_calc._clique_motifs)
         self.detect_clique()
 
@@ -34,4 +34,4 @@ class CliqueInERDetector:
 
 
 if __name__ == "__main__":
-    CliqueInERDetector()
+    CliqueInERDetector(1000, 0.5, 15, True)
