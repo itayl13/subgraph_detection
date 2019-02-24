@@ -5,6 +5,7 @@ from scipy.special import comb
 import networkx as nx
 from itertools import combinations, permutations
 import csv
+from motif_probability_extra import MotifCalculatorByCliqueVertices
 
 
 class MotifProbability:
@@ -259,29 +260,41 @@ class MotifProbability:
         combos = combinations(rest_of_the_nodes, 3)
         return [[combo[i] for i in range(len(combo))] + [root] for combo in combos]
 
-    def check_second_probability(self, motif_index):
-        motif_ind, variations, num_edges, num_max, flag = self._for_probability_calculation(motif_index)
-        f = open(os.path.join(os.path.dirname(__file__), '..', 'graph_other_files', 'motif_' + str(motif_index) +
-                              '_second_probability_check.csv'), 'w')
-        w = csv.writer(f)
-        w.writerow(['i', 'num_edges', 'num_isomorphisms', 'num_edges_from_clique_vertices', 'max_edge_num'])
-        for i in range(flag):
-            clique_edges = self._clique_edges(flag, i)
-            motifs = []
-            for original_number in variations.keys():
-                if variations[original_number] == motif_ind:
-                    b = np.binary_repr(original_number, num_max)
-                    if self._second_condition(b, clique_edges):
-                        motifs.append(b)
-            num_iso = len(motifs)
-            num_already_there = (i + 1) * i if self._is_directed else (i + 1) * i / 2
-            w.writerow([i, num_edges, num_iso, num_already_there, num_max])
-        f.close()
+    def check_second_probability(self, dir_path):
+        p_i_theory = np.zeros((4, 212))
+        for motif_index in range(212):
+            motif_ind, variations, num_edges, num_max, flag = self._for_probability_calculation(motif_index)
+            for i in range(flag):
+                spec_comb_motif_prob = self._specific_combination_motif_probability(
+                    motif_ind, num_edges, num_max, flag, variations, i)
+                p_i_theory[i, motif_index] = spec_comb_motif_prob
+        self._gnx = pickle.load(open(os.path.join(dir_path, 'gnx.pkl'), "rb"))
+        self._labels = pickle.load(open(os.path.join(dir_path, 'labels.pkl'), "rb"))
+        mccv3 = MotifCalculatorByCliqueVertices(self._gnx, 3, self._labels)
+        motif3 = mccv3.features()
+        mccv4 = MotifCalculatorByCliqueVertices(self._gnx, 4, self._labels)
+        motif4 = mccv4.features()
+        p_i_found = self._node_motif_dict_to_matrix(motif3, motif4)
+        return p_i_theory, p_i_found
+
+    @staticmethod
+    def _node_motif_dict_to_matrix(m3, m4):
+        final_matrix = np.zeros((4, 212))
+        for motif in range(212):
+            for i in range(4):
+                if motif > 12:
+                    final_matrix[i, motif] = max(sum([m4[v][motif - 13][i] for v in m4.keys()]), 1e-8) / max(sum(
+                        [sum([m4[v][mot - 13][i] for v in m4.keys()]) for mot in range(13, 212)]), 1e-8)
+                else:
+                    final_matrix[i, motif] = max(sum([m3[v][motif][i] for v in m3.keys()]) / max(sum(
+                        [sum([m3[v][mot][i] for v in m3.keys()]) for mot in range(13)]), 1e-8), 1e-8)
+        return final_matrix
 
 
 if __name__ == "__main__":
-    mp = MotifProbability(250, 0.5, 10, True)
-    for motif in mp.get_3_clique_motifs(3) + mp.get_3_clique_motifs(4):
-        print("Non clique: %s , Clique: %s" %
-              (mp.motif_expected_non_clique_vertex(motif), mp.motif_expected_clique_vertex(motif)))
+    mp = MotifProbability(200, 0.5, 10, True)
+    # for motif in mp.get_3_clique_motifs(3) + mp.get_3_clique_motifs(4):
+    #     print("Non clique: %s , Clique: %s" %
+    #           (mp.motif_expected_non_clique_vertex(motif), mp.motif_expected_clique_vertex(motif)))
         # mp.check_second_probability(motif)
+    mp.prob_i_clique_verts_check(dir_path=os.path.join('pkl', 'n_200_p_0.5_size_10_d'))

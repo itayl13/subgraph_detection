@@ -4,17 +4,15 @@ import itertools
 import os
 import pickle
 import datetime
-
-try:
-    from features_infra.feature_calculators import FeatureMeta
-    from features_algorithms.accelerated_graph_features.motifs import nth_nodes_motif
-    from motif_probability import MotifProbability
-    from graph_features import GraphFeatures
-except ModuleNotFoundError:
-    from graph_calculations.graph_measures.features_infra.feature_calculators import FeatureMeta
-    from graph_calculations.graph_measures.features_algorithms.accelerated_graph_features.motifs import nth_nodes_motif
-    from graph_calculations.motif_probability import MotifProbability
-    from graph_calculations.graph_measures.features_infra.graph_features import GraphFeatures
+import sys
+sys.path.append(os.path.abspath('graph_calculations/'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra'))
+from features_infra.feature_calculators import FeatureMeta
+from features_algorithms.accelerated_graph_features.motifs import nth_nodes_motif, MotifsNodeCalculator
+from motif_probability import MotifProbability
+from graph_features import GraphFeatures
 
 
 class ER:
@@ -79,7 +77,7 @@ class GraphBuilder:
         self._label_graph()
 
     def _build_er_and_clique(self):
-        if self._params['load_graph']:
+        if self._params['load_graph'] or os.path.exists(os.path.join(self._dir_path, 'motif4.pkl')):
             self._gnx = pickle.load(open(os.path.join(self._dir_path, 'gnx.pkl'), 'rb'))
         else:
             if not os.path.exists(self._dir_path):
@@ -91,7 +89,7 @@ class GraphBuilder:
             pickle.dump(self._gnx, open(os.path.join(self._dir_path, 'gnx.pkl'), "wb"))
 
     def _label_graph(self):
-        if self._params['load_labels']:
+        if self._params['load_labels'] or os.path.exists(os.path.join(self._dir_path, 'motif4.pkl')):
             self._labels = pickle.load(open(os.path.join(self._dir_path, 'labels.pkl'), "rb"))
         else:
             labels = {}
@@ -103,6 +101,12 @@ class GraphBuilder:
 
     def vertices(self):
         return self._gnx.nodes
+
+    def graph(self):
+        return self._gnx
+
+    def labels(self):
+        return self._labels
 
 
 class MotifCalculator:
@@ -129,18 +133,23 @@ class MotifCalculator:
         pickle.dump(self._expected_clique, open(os.path.join(self._dir_path, 'expected_clique.pkl'), 'wb'))
 
     def _calculate_motif_matrix(self):
-        if self._params["load_motifs"]:
+        if self._params["load_motifs"] or os.path.exists(os.path.join(self._dir_path, 'motif4.pkl')):
             pkl3 = pickle.load(open(os.path.join(self._dir_path, "motif3.pkl"), "rb"))
             pkl4 = pickle.load(open(os.path.join(self._dir_path, "motif4.pkl"), "rb"))
             if type(pkl3) == dict:
                 motif3 = self._to_matrix(pkl3)
+            elif type(pkl3) == MotifsNodeCalculator:
+                motif3 = np.array(pkl3._features)
             else:
                 motif3 = np.array(pkl3)
             if type(pkl4) == dict:
                 motif4 = self._to_matrix(pkl4)
+            elif type(pkl4) == MotifsNodeCalculator:
+                motif4 = np.array(pkl4._features)
             else:
                 motif4 = np.array(pkl4)
-            self._motif_matrix = np.hstack((motif3, motif4))
+            self._motif_mat = np.hstack((motif3, motif4))
+            print(str(datetime.datetime.now()) + " , Calculated motifs")
             return
         g_ftrs = GraphFeatures(self._graph, self._motif_features, dir_path=self._dir_path)
         g_ftrs.build(should_dump=True)
@@ -164,7 +173,4 @@ class MotifCalculator:
         if not motif_picking:
             return self._motif_mat
         else:
-            try:
-                return self._motif_mat[:, motif_picking]
-            except IndexError:
-                e = 0
+            return self._motif_mat[:, motif_picking]
