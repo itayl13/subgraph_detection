@@ -20,14 +20,6 @@ class DetectClique:
         self._expected_non_clique = pickle.load(open(os.path.join(self._dir_path, 'expected_non_clique.pkl'), 'rb'))
 
     def irregular_vertices(self, method='dist', to_scale=True):
-        # method = 'dist', 'gmm' or 'svm'
-        if method == 'dist':
-            irregulars = self.find_using_distances(to_scale)
-        else:
-            irregulars = self.find_using_ml(method)
-        return irregulars
-
-    def find_using_distances(self, to_scale=False):
         motif_matrix = self._motif_matrix.copy().astype(float)
         expected_clique = self._expected_clique.copy()
         expected_non_clique = self._expected_non_clique.copy()
@@ -48,6 +40,14 @@ class DetectClique:
                     expected_non_clique[i] = expected_non_clique[i]
                 else:
                     expected_non_clique[i] /= stds[i]
+
+        # condition1 = np.arccos(np.dot(z_vec, z_exp) / (np.linalg.norm(z_vec) * np.linalg.norm(z_exp))) < np.pi / 2
+        # condition1 = np.arccos(np.dot(motif_matrix[v, :], expected_clique) / (
+        #         np.linalg.norm(motif_matrix[v, :]) * np.linalg.norm(expected_clique))) < 0.1
+        # condition2 = sum([1 if motif_matrix[v, k] > expected_clique[k] else 0 for k in range(len(expected_clique))])
+        # if condition1 and condition2 > 12:
+        #     valid_verts[index].append(v)
+
         angles = [self.angle(motif_matrix[v, :], expected_clique) for v in range(motif_matrix.shape[0])]
         positive_components = [self.positive_components(motif_matrix[v, :], expected_non_clique) for v in range(motif_matrix.shape[0])]
         distances = [self.distance(motif_matrix[v, :], expected_clique) for v in range(motif_matrix.shape[0])]
@@ -55,19 +55,6 @@ class DetectClique:
         for v in range(motif_matrix.shape[0]):
             if angles[v] < 0.05 and distances[v] > 1000 and positive_components[v] >= 10:
                 irregulars.append(v)
-        return irregulars
-
-    def find_using_ml(self, method):
-        if method == 'gmm':
-            gmm = GaussianMixture(
-                n_components=2, covariance_type='diag', tol=0.01, max_iter=10,
-                means_init=[self._expected_non_clique, self._expected_clique])
-            guessed_labels = gmm.fit_predict(self._motif_matrix)
-            irregulars = [v for v in range(len(guessed_labels)) if guessed_labels[v]]
-        else:
-            svm = OneClassSVM(gamma='scale', nu=(float(self._clique_size)/self._vertices))
-            guessed_labels = svm.fit_predict(self._motif_matrix)
-            irregulars = [v for v in range(len(guessed_labels)) if guessed_labels[v] == -1]
         return irregulars
 
     @staticmethod

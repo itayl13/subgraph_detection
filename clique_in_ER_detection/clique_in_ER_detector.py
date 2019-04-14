@@ -9,6 +9,7 @@ sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algo
 sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
 sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
 sys.path.append(os.path.abspath('graph_calculations/graph_measures/graph_infra/'))
+import datetime
 
 
 class CliqueInERDetector:
@@ -22,16 +23,17 @@ class CliqueInERDetector:
             'load_labels': False,
             'load_motifs': False
         }
+        now = datetime.datetime.now().strftime("%H%M%S_%f")
         self._dir_path = os.path.join('graph_calculations', 'pkl',
                                       'n_' + str(self._params["vertices"]) + '_p_' +
                                       str(self._params["probability"]) + '_size_' + str(self._params["clique_size"]) +
-                                      ('_d' if self._params["directed"] else '_ud'))
+                                      ('_d' if self._params["directed"] else '_ud') + "_" + now)
         self._data = GraphBuilder(self._params, self._dir_path)
         self._graph = self._data.graph()
         self._labels = self._data.labels()
         self._motif_calc = MotifCalculator(self._params, self._graph, self._dir_path, gpu=True)
         self._motif_matrix = self._motif_calc.motif_matrix(motif_picking=self._motif_calc.clique_motifs())
-        self.detect_clique()
+#        self.detect_clique()
 
     def detect_clique(self):
         detector = DetectClique(graph=self._graph, matrix=self._motif_matrix, labels=self._labels,
@@ -42,4 +44,5 @@ class CliqueInERDetector:
 
 
 if __name__ == "__main__":
-    CliqueInERDetector(500, 0.5, 15, True)
+    CliqueInERDetector(2000, 0.5, 20, True)
+

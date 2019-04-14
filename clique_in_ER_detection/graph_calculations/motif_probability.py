@@ -290,6 +290,23 @@ class MotifProbability:
                         [sum([m3[v][mot][i] for v in m3.keys()]) for mot in range(13)]), 1e-8), 1e-8)
         return final_matrix
 
+    def clique_non_clique_angle(self, motifs):
+        clique_vec = [self.motif_expected_clique_vertex(m) for m in motifs]
+        non_clique_vec = [self.motif_expected_non_clique_vertex(m) for m in motifs]
+        return self._angle(clique_vec, non_clique_vec)
+
+    def clique_non_clique_zscored_angle(self, mean_vector, std_vector, motifs):
+        clique_vec = np.array([self.motif_expected_clique_vertex(m) for m in motifs])
+        non_clique_vec = np.array([self.motif_expected_non_clique_vertex(m) for m in motifs])
+        normed_clique_vec = np.divide(clique_vec - mean_vector, std_vector)
+        normed_non_clique_vec = np.divide(non_clique_vec - mean_vector, std_vector)
+        return self._angle(normed_clique_vec, normed_non_clique_vec)
+
+    @staticmethod
+    def _angle(v1, v2):
+        cos = np.dot(v1, np.transpose(v2)) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+        return np.arccos(cos)
+
 
 if __name__ == "__main__":
     mp = MotifProbability(200, 0.5, 10, True)
