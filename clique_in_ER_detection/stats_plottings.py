@@ -8,6 +8,7 @@ from scipy.spatial.distance import pdist, cdist, squareform
 from sklearn.linear_model import LinearRegression
 from operator import itemgetter
 import sys
+import csv
 
 sys.path.append(os.path.abspath('.'))
 sys.path.append(os.path.abspath('..'))
@@ -40,14 +41,16 @@ class StatsPlot:
         if os.path.exists(os.path.join(self._pkl_path, 'motif4.pkl')):
             self._gnx = pickle.load(open(os.path.join(self._pkl_path, 'gnx.pkl'), 'rb'))
             self._labels = pickle.load(open(os.path.join(self._pkl_path, 'labels.pkl'), 'rb'))
+        self._motif_matrix = None
         self._motif_matrix_and_expected_vectors()
 
     def _motif_matrix_and_expected_vectors(self):
-        motif3 = pickle.load(open(os.path.join(self._pkl_path, 'motif3.pkl'), 'rb'))
-        self._motif3_matrix = self._to_matrix(motif3._features)
-        motif4 = pickle.load(open(os.path.join(self._pkl_path, 'motif4.pkl'), 'rb'))
-        self._motif4_matrix = self._to_matrix(motif4._features)
-        self._motif_matrix = np.hstack((self._motif3_matrix, self._motif4_matrix))
+        if os.path.exists(os.path.join(self._pkl_path, 'motif4.pkl')):
+            motif3 = pickle.load(open(os.path.join(self._pkl_path, 'motif3.pkl'), 'rb'))
+            self._motif3_matrix = self._to_matrix(motif3._features)
+            motif4 = pickle.load(open(os.path.join(self._pkl_path, 'motif4.pkl'), 'rb'))
+            self._motif4_matrix = self._to_matrix(motif4._features)
+            self._motif_matrix = np.hstack((self._motif3_matrix, self._motif4_matrix))
 
         self._mp = MotifProbability(self._vertices, self._probability, self._clique_size, self._directed)
         self._clique_motifs = self._mp.get_3_clique_motifs(3) + self._mp.get_3_clique_motifs(4)
@@ -736,6 +739,207 @@ class StatsPlot:
         plt.legend()
         plt.savefig(os.path.join(os.getcwd(), 'graph_plots', self._key_name + '_cc_neighbor.png'))
 
+    @staticmethod
+    def features_to_auc(features_true, features_false):
+        bins = np.linspace(np.min(np.concatenate((features_false, features_true))),
+                           np.max(np.concatenate((features_false, features_true))), 10000)
+        false_hist, _ = np.histogram(features_false, bins)
+        true_hist, _ = np.histogram(features_true, bins)
+        false_rate = 1 - np.cumsum(false_hist) / np.sum(false_hist)
+        true_rate = 1 - np.cumsum(true_hist) / np.sum(true_hist)
+        auc = np.trapz(y=np.flip(true_rate), x=np.flip(false_rate))
+        return auc
+
+    def auc_all_used_measures(self):
+        # All the ideas
+        clique_dot_excl = []
+        non_clique_dot_excl = []
+
+        clique_dot_exncl = []
+        non_clique_dot_exncl = []
+
+        clique_proj_excl = []
+        non_clique_proj_excl = []
+
+        clique_proj_exncl = []
+        non_clique_proj_exncl = []
+
+        clique_dist_excl = []
+        non_clique_dist_excl = []
+
+        clique_dist_exncl = []
+        non_clique_dist_exncl = []
+
+        clique_lgdist_excl = []
+        non_clique_lgdist_excl = []
+
+        clique_lgdist_exncl = []
+        non_clique_lgdist_exncl = []
+
+        clique_zproj_excl = []
+        non_clique_zproj_excl = []
+
+        clique_zproj_exncl = []
+        non_clique_zproj_exncl = []
+
+        clique_zdist_excl = []
+        non_clique_zdist_excl = []
+
+        clique_zdist_exncl = []
+        non_clique_zdist_exncl = []
+
+        clique_sum = []
+        non_clique_sum = []
+
+        clique_regsum = []
+        non_clique_regsum = []
+
+        clique_tnbr_sum = []
+        non_clique_tnbr_sum = []
+
+        clique_cc = []
+        non_clique_cc = []
+
+        clique_tcc = []
+        non_clique_tcc = []
+
+        key_name = self._key_name + '_runs'
+        num_runs = len(os.listdir(os.path.join(os.path.join(os.getcwd(), 'graph_calculations', 'pkl', key_name))))
+        for run in range(num_runs):
+            pkl_path = os.path.join(os.getcwd(), 'graph_calculations', 'pkl', key_name,
+                                    self._key_name + '_run_%d' % run)
+            self._gnx = pickle.load(open(os.path.join(pkl_path, 'gnx.pkl'), 'rb'))
+            self._labels = pickle.load(open(os.path.join(pkl_path, 'labels.pkl'), 'rb'))
+            self._motif_matrix_and_expected_vectors()
+            motif3 = pickle.load(open(os.path.join(pkl_path, 'motif3.pkl'), 'rb'))
+            motif3_matrix = self._to_matrix(motif3._features)
+            motif4 = pickle.load(open(os.path.join(pkl_path, 'motif4.pkl'), 'rb'))
+            motif4_matrix = self._to_matrix(motif4._features)
+            self._motif_matrix = np.hstack((motif3_matrix, motif4_matrix))
+
+            # Preparation
+            motif_matrix = self._motif_matrix[:, self._clique_motifs]
+            expected_clique = [self._mp.motif_expected_clique_vertex(motif) for motif in self._clique_motifs]
+            expected_non_clique = [self._mp.motif_expected_non_clique_vertex(motif) for motif in self._clique_motifs]
+            means = np.mean(motif_matrix, axis=0)
+            stds = np.std(motif_matrix, axis=0)
+            log_expected_clique = np.log(expected_clique)
+            log_expected_non_clique = np.log(expected_non_clique)
+            zscored_expected_clique = np.divide((expected_clique - means), stds)
+            zscored_expected_non_clique = np.divide((expected_non_clique - means), stds)
+            motif_matrix_residual, _, _ = self._residual()
+            cc = np.divide(self._motif_matrix[:, 12], np.array([self._gnx.degree(v) * (self._gnx.degree(v) - 1)
+                                                               for v in range(self._vertices)]))
+            sums = [(i, sum(motif_matrix_residual[i, :])) for i in range(self._vertices)]
+            sums.sort(key=itemgetter(1), reverse=True)
+            top_sum = [v[0] for v in sums[:int(self._vertices / 10)]]
+            bitmat = np.zeros((len(top_sum), self._vertices))
+            for i in range(len(top_sum)):
+                for j in range(self._vertices):
+                    bitmat[i, j] = 1 if self._gnx.has_edge(top_sum[i], j) and self._gnx.has_edge(j, top_sum[i]) else 0
+            bitsum = np.sum(bitmat, axis=0)
+
+            # Calculating
+            clique_tnbr_sum = clique_tnbr_sum + [bitsum[i] for i in range(self._vertices) if self._labels[i]]
+            non_clique_tnbr_sum = non_clique_tnbr_sum + [
+                bitsum[i] for i in range(self._vertices) if not self._labels[i]]
+            clique_cc = clique_cc + [cc[i] for i in range(self._vertices) if self._labels[i]]
+            non_clique_cc = non_clique_cc +[cc[i] for i in range(self._vertices) if not self._labels[i]]
+
+            for v in range(self._vertices):
+                motif_vector = motif_matrix[v, :]
+                log_motif_vector = np.log(motif_vector)
+                zscored_motif_vector = np.divide((motif_vector - means), stds)
+                reg_motif_vector = motif_matrix_residual[v, :]
+
+                neighbors = set(self._gnx.successors(v)).intersection(set(self._gnx.predecessors(v)))
+                neighbor_cc = [(v, cc[v]) for v in neighbors]
+                neighbor_cc.sort(key=itemgetter(1), reverse=True)
+                top_neighbors = neighbor_cc[:self._clique_size]
+                if self._labels[v]:
+                    clique_dot_excl.append(np.dot(motif_vector, np.transpose(expected_clique)))
+                    clique_dot_exncl.append(np.dot(motif_vector, np.transpose(expected_non_clique)))
+                    clique_proj_excl.append(np.vdot(motif_vector, expected_clique) / np.linalg.norm(expected_clique))
+                    clique_proj_exncl.append(
+                        np.vdot(motif_vector, expected_non_clique) / np.linalg.norm(expected_non_clique))
+                    clique_dist_excl.append(np.linalg.norm(motif_vector - expected_clique))
+                    clique_dist_exncl.append(np.linalg.norm(motif_vector - expected_non_clique))
+                    clique_lgdist_excl.append(np.linalg.norm(log_motif_vector - log_expected_clique))
+                    clique_lgdist_exncl.append(np.linalg.norm(log_motif_vector - log_expected_non_clique))
+                    clique_zproj_excl.append(
+                        np.vdot(zscored_motif_vector, zscored_expected_clique) / np.linalg.norm(zscored_expected_clique))
+                    clique_zproj_exncl.append(np.vdot(zscored_motif_vector, zscored_expected_non_clique) / np.linalg.norm(
+                        zscored_expected_non_clique))
+                    clique_zdist_excl.append(np.linalg.norm(zscored_motif_vector - zscored_expected_clique))
+                    clique_zdist_exncl.append(np.linalg.norm(zscored_motif_vector - zscored_expected_non_clique))
+                    clique_sum.append(sum(motif_vector))
+                    clique_regsum.append(sum(reg_motif_vector))
+                    clique_tcc.append(np.mean([j for i, j in top_neighbors]))
+                else:
+                    non_clique_dot_excl.append(np.dot(motif_vector, np.transpose(expected_clique)))
+                    non_clique_dot_exncl.append(np.dot(motif_vector, np.transpose(expected_non_clique)))
+                    non_clique_proj_excl.append(np.vdot(motif_vector, expected_clique) / np.linalg.norm(expected_clique))
+                    non_clique_proj_exncl.append(
+                        np.vdot(motif_vector, expected_non_clique) / np.linalg.norm(expected_non_clique))
+                    non_clique_dist_excl.append(np.linalg.norm(motif_vector - expected_clique))
+                    non_clique_dist_exncl.append(np.linalg.norm(motif_vector - expected_non_clique))
+                    non_clique_lgdist_excl.append(np.linalg.norm(log_motif_vector - log_expected_clique))
+                    non_clique_lgdist_exncl.append(np.linalg.norm(log_motif_vector - log_expected_non_clique))
+                    non_clique_zproj_excl.append(
+                        np.vdot(zscored_motif_vector, zscored_expected_clique) / np.linalg.norm(zscored_expected_clique))
+                    non_clique_zproj_exncl.append(
+                        np.vdot(zscored_motif_vector, zscored_expected_non_clique) / np.linalg.norm(
+                            zscored_expected_non_clique))
+                    non_clique_zdist_excl.append(np.linalg.norm(zscored_motif_vector - zscored_expected_clique))
+                    non_clique_zdist_exncl.append(np.linalg.norm(zscored_motif_vector - zscored_expected_non_clique))
+                    non_clique_sum.append(sum(motif_vector))
+                    non_clique_regsum.append(sum(reg_motif_vector))
+                    non_clique_tcc.append(np.mean([j for i, j in top_neighbors]))
+
+        ideas = {0: '<vec, clique_ex>',
+                 1: '<vec, non_clique_ex>',
+                 2: 'project vec on clique_ex',
+                 3: 'project vec on non_clique_ex',
+                 4: 'd(vec, clique_ex)',
+                 5: 'd(vec, non_clique_ex)',
+                 6: 'd(log(vec), log(clique_ex))',
+                 7: 'd(log(vec), log(non_clique_ex))',
+                 8: 'project zscored(vec) on zscored(clique_ex)',
+                 9: 'project zscored(vec) on zscored(non_clique_ex)',
+                 10: 'd(zscored(vec), zscored(clique_ex))',
+                 11: 'd(zscored(vec), zscored(non_clique_ex))',
+                 12: 'sum motifs',
+                 13: 'sum_residual_motifs',
+                 14: '# (neighbors with the sum of top 10%)',
+                 15: 'Clustering Coeff.',
+                 16: '<Clustering Coeff.> over top |clique| neighbors'
+                 }
+
+        with open(os.path.join(os.getcwd(), 'graph_calculations', 'auc_ideas.csv'), 'w') as f:
+            w = csv.writer(f)
+            w.writerow(['Idea', 'AUC'])
+            aucs = [
+                self.features_to_auc(clique_dot_excl, non_clique_dot_excl),
+                self.features_to_auc(clique_dot_exncl, non_clique_dot_exncl),
+                self.features_to_auc(clique_proj_excl, non_clique_proj_excl),
+                self.features_to_auc(clique_proj_exncl, non_clique_proj_exncl),
+                self.features_to_auc(clique_dist_excl, non_clique_dist_excl),
+                self.features_to_auc(clique_dist_exncl, non_clique_dist_exncl),
+                self.features_to_auc(clique_lgdist_excl, non_clique_lgdist_excl),
+                self.features_to_auc(clique_lgdist_exncl, non_clique_lgdist_exncl),
+                self.features_to_auc(clique_zproj_excl, non_clique_zproj_excl),
+                self.features_to_auc(clique_zproj_exncl, non_clique_zproj_exncl),
+                self.features_to_auc(clique_zdist_excl, non_clique_zdist_excl),
+                self.features_to_auc(clique_zdist_exncl, non_clique_zdist_exncl),
+                self.features_to_auc(clique_sum, non_clique_sum),
+                self.features_to_auc(clique_regsum, non_clique_regsum),
+                self.features_to_auc(clique_tnbr_sum, non_clique_tnbr_sum),
+                self.features_to_auc(clique_cc, non_clique_cc),
+                self.features_to_auc(clique_tcc, non_clique_tcc)
+            ]
+            for idea in range(len(aucs)):
+                w.writerow([ideas[idea], str(aucs[idea])])
+
 
 if __name__ == "__main__":
     size = 2000
@@ -747,11 +951,11 @@ if __name__ == "__main__":
     # sp = StatsPlot(size, pr, cl, True)
     # sp.sum_motifs()
     # mopro = MotifProbability(size, pr, cl, True)
-    for runs in range(4):
-        k_name = 'n_' + str(size) + '_p_' + str(pr) + '_size_' + str(cl) + '_d_run_' + str(runs)
-        pkl_pth = os.path.join(os.getcwd(), 'graph_calculations', 'pkl',
-                               'n_' + str(size) + '_p_' + str(pr) + '_size_' + str(cl) + '_d_runs', k_name)
-        sp = StatsPlot(size, pr, cl, True, key_name=k_name, pkl_path=pkl_pth)
+    # for runs in range(4):
+    #     k_name = 'n_' + str(size) + '_p_' + str(pr) + '_size_' + str(cl) + '_d_run_' + str(runs)
+    #     pkl_pth = os.path.join(os.getcwd(), 'graph_calculations', 'pkl',
+    #                            'n_' + str(size) + '_p_' + str(pr) + '_size_' + str(cl) + '_d_runs', k_name)
+    #     sp = StatsPlot(size, pr, cl, True, key_name=k_name, pkl_path=pkl_pth)
         # sp.sum_motifs()
         # sp.big_sum_most_common()
         # sp.sum_most_common_hist()
@@ -759,7 +963,8 @@ if __name__ == "__main__":
 
         # sp.feature_vs_degree()
         # sp.motif_stats([m3 for m3 in range(13)])
-        sp.motif_scatter_updated_vec()
-    # sp = StatsPlot(size, pr, cl, True)
+        # sp.motif_scatter_updated_vec()
+    sp = StatsPlot(size, pr, cl, True)
+    sp.auc_all_used_measures()
     # sp.motif_scatter_updated_vec()
     # sp.motif_stats([m4 for m4 in range(16, 211, 4)])

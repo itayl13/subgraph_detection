@@ -6,6 +6,7 @@ import numpy as np
 from FFN_clique_detector import FFNCliqueDetector
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
+from sklearn.preprocessing import StandardScaler
 
 
 class GridFFN:

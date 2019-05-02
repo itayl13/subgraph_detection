@@ -9,7 +9,6 @@ sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algo
 sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
 sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
 sys.path.append(os.path.abspath('graph_calculations/graph_measures/graph_infra/'))
-import datetime
 
 
 class CliqueInERDetector:
@@ -23,11 +22,10 @@ class CliqueInERDetector:
             'load_labels': False,
             'load_motifs': False
         }
-        now = datetime.datetime.now().strftime("%H%M%S_%f")
         self._dir_path = os.path.join('graph_calculations', 'pkl',
                                       'n_' + str(self._params["vertices"]) + '_p_' +
                                       str(self._params["probability"]) + '_size_' + str(self._params["clique_size"]) +
-                                      ('_d' if self._params["directed"] else '_ud') + "_" + now)
+                                      ('_d' if self._params["directed"] else '_ud'))
         self._data = GraphBuilder(self._params, self._dir_path)
         self._graph = self._data.graph()
         self._labels = self._data.labels()

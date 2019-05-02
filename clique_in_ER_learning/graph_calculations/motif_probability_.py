@@ -5,7 +5,6 @@ from scipy.special import comb
 import networkx as nx
 from itertools import combinations, permutations
 import csv
-from motif_probability_extra import MotifCalculatorByCliqueVertices
 
 
 class MotifProbability:

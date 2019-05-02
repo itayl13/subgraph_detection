@@ -1,9 +1,12 @@
 import tensorflow as tf
-from graph_builder_ import GraphBuilder, MotifCalculator
+from clique_in_ER_learning.graph_builder import GraphBuilder, MotifCalculator
+from clique_in_ER_learning.extra_features import ExtraFeatures
 import os
+import pickle
 import numpy as np
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score, confusion_matrix
+from sklearn.metrics import roc_auc_score
 import sys
 sys.path.append(os.path.abspath('.'))
 sys.path.append(os.path.abspath('graph_calculations'))
@@ -15,7 +18,7 @@ sys.path.append(os.path.abspath('graph_calculations/graph_measures/graph_infra/'
 
 
 class FFNCliqueDetector:
-    def __init__(self, v, p, cs, d, num_runs=None):
+    def __init__(self, v, p, cs, d, use_motifs=True, use_extra=False, num_runs=None):
         self._params = {
             'vertices': v,
             'probability': p,
@@ -25,6 +28,8 @@ class FFNCliqueDetector:
             'load_labels': False,
             'load_motifs': False
         }
+        self.use_motifs = use_motifs
+        self.use_extra = use_extra
         self._num_runs = num_runs if num_runs is not None else 0
         self._key_name = 'n_' + str(self._params["vertices"]) + '_p_' + str(
             self._params["probability"]) + '_size_' + str(
@@ -34,6 +39,8 @@ class FFNCliqueDetector:
 
     def _load_data(self):
         graph_ids = os.listdir(self._head_path)
+        if 'additional_features.pkl' in graph_ids:
+            graph_ids.remove('additional_features.pkl')
         if len(graph_ids) == 0:
             if self._num_runs == 0:
                 raise ValueError('No runs of G(%d, %s) with a clique of %d were saved, and no new runs were requested.'
@@ -57,39 +64,96 @@ class FFNCliqueDetector:
         self._clique_matrix = self._matrix[[True if self._labels[i] else False for i in range(len(self._labels))], :]
         self._non_clique_matrix = self._matrix[
                                   [True if self._labels[i] == 0 else False for i in range(len(self._labels))], :]
+        self._scale_matrices()
+        self._extra_parameters()
+
+    def _scale_matrices(self):
+        scaler1 = StandardScaler()
+        self._clique_matrix = scaler1.fit_transform(self._clique_matrix.astype('float64'))
+        scaler2 = StandardScaler()
+        self._non_clique_matrix = scaler2.fit_transform(self._non_clique_matrix.astype('float64'))
+
+    def _extra_parameters(self):
+        ef = ExtraFeatures(self._params, self._key_name, self._head_path, self._matrix)
+        self._additional_clique, self._additional_non_clique = ef.calculate_extra_ftrs()
+        scaler1 = StandardScaler()
+        self._additional_clique = scaler1.fit_transform(self._additional_clique)
+        scaler2 = StandardScaler()
+        self._additional_non_clique = scaler2.fit_transform(self._additional_non_clique)
 
     def _layer_builder(self, model):
-        model.add(tf.keras.layers.Dense(self._matrix.shape[1], activation=tf.nn.sigmoid))
-        model.add(tf.keras.layers.Dense(6, activation=tf.nn.sigmoid))
-        model.add(tf.keras.layers.Dense(1, activation=tf.nn.sigmoid))
+        model.add(tf.keras.layers.Dense(self._matrix.shape[1], activation=tf.nn.relu,
+                                        kernel_regularizer=tf.keras.regularizers.l2(l=0.001)))
+        model.add(
+            tf.keras.layers.Dense(50, activation=tf.nn.relu, kernel_regularizer=tf.keras.regularizers.l2(l=0.001)))
+        model.add(tf.keras.layers.Dropout(rate=0.3))
+        model.add(
+            tf.keras.layers.Dense(30, activation=tf.nn.relu, kernel_regularizer=tf.keras.regularizers.l2(l=0.001)))
+        model.add(
+            tf.keras.layers.Dense(1, activation=tf.nn.sigmoid, kernel_regularizer=tf.keras.regularizers.l2(l=0.001)))
         return model
 
-    @staticmethod
-    def _train_model(model, train_clique, train_non_clique, epochs):
+    def _train_model(self, model, train_clique, train_non_clique, epochs):
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-        class_weights = {0: 10. / train_non_clique.shape[0], 1: 1. / train_clique.shape[0]}
+        class_weights = {0: 1. / (self._params['vertices'] - self._params['clique_size']),
+                         1: 1. / self._params['clique_size']}
         for epoch in range(epochs):
-            subsampled_indices = np.random.choice(train_non_clique.shape[0], int(train_non_clique.shape[0] / 10),
+            subsampled_indices = np.random.choice(train_non_clique.shape[0], int(train_non_clique.shape[0] / 3.),
                                                   replace=False)
             subsample_non_clique = train_non_clique[subsampled_indices, :]
             train_data = np.vstack((subsample_non_clique, train_clique))
             train_labels = np.vstack(
                 (np.zeros((subsample_non_clique.shape[0], 1)), np.ones((train_clique.shape[0], 1))))
-            model.train_on_batch(train_data, train_labels, class_weight=class_weights)
+            row_ind_permutation = np.random.permutation(np.arange(train_data.shape[0]))
+            shuffled_train_data = train_data[row_ind_permutation, :]
+            shuffled_train_labels = train_labels[row_ind_permutation, :]
+            model.train_on_batch(shuffled_train_data, shuffled_train_labels, class_weight=class_weights)
         return model
 
     def ffn_clique(self):
-        model = tf.keras.models.Sequential()
-        model = self._layer_builder(model)
-        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-        train_clique, test_clique = train_test_split(self._clique_matrix, test_size=0.2)
-        train_non_clique, test_non_clique = train_test_split(self._non_clique_matrix, test_size=0.2)
-        model = self._train_model(model, train_clique, train_non_clique, epochs=100)
-        test_data = np.vstack((test_clique, test_non_clique))
-        test_labels = np.vstack((np.ones((test_clique.shape[0], 1)), np.zeros((test_non_clique.shape[0], 1))))
-        tags = model.predict(test_data)
-        print('AUC:', roc_auc_score(test_labels, tags))  # sample_weight?
-        print('Confusion Matrix: \n[[TN, FP]\n[FN, TP]]\n', confusion_matrix(test_labels, np.round(tags)))
+        auc_train = []
+        auc_test = []
+        if not any([self.use_motifs, self.use_extra]):
+            raise ValueError("Please choose to use Motifs or Extra-features")
+        elif self.use_motifs and not self.use_extra:
+            clique_feature_matrix = self._clique_matrix
+            non_clique_feature_matrix = self._non_clique_matrix
+        elif self.use_extra and not self.use_motifs:
+            clique_feature_matrix = self._additional_clique
+            non_clique_feature_matrix = self._additional_non_clique
+        else:
+            clique_feature_matrix = np.hstack((self._clique_matrix, self._additional_clique))
+            non_clique_feature_matrix = np.hstack((self._non_clique_matrix, self._additional_non_clique))
+        for run in range(10):
+            model = tf.keras.models.Sequential()
+            model = self._layer_builder(model)
+            model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.01), loss='binary_crossentropy', metrics=['accuracy'])
+            train_clique, test_clique = train_test_split(clique_feature_matrix, test_size=0.5)
+            train_non_clique, test_non_clique = train_test_split(non_clique_feature_matrix, test_size=0.5)
+            model = self._train_model(model, train_clique, train_non_clique, epochs=100)
+
+            test_data = np.vstack((test_clique, test_non_clique))
+            test_labels = np.vstack((np.ones((test_clique.shape[0], 1)), np.zeros((test_non_clique.shape[0], 1))))
+            test_ind_perm = np.random.permutation(np.arange(test_data.shape[0]))
+            shuffled_test_data = test_data[test_ind_perm, :]
+            shuffled_test_labels = test_labels[test_ind_perm, :]
+
+            train_data = np.vstack((train_clique, train_non_clique))
+            all_train_labels = np.vstack(
+                (np.ones((train_clique.shape[0], 1)), np.zeros((train_non_clique.shape[0], 1))))
+            train_ind_perm = np.random.permutation(np.arange(train_data.shape[0]))
+            shuffled_train_data = train_data[train_ind_perm, :]
+            shuffled_train_labels = all_train_labels[train_ind_perm, :]
+
+            train_tags = model.predict(shuffled_train_data)
+            test_tags = model.predict(shuffled_test_data)
+            auc_train.append(roc_auc_score(shuffled_train_labels, train_tags))
+            auc_test.append(roc_auc_score(shuffled_test_labels, test_tags))
+        print('Train AUC: ', np.mean(auc_train))
+        print('Test AUC:', np.mean(auc_test))
+
+    def all_labels_to_pkl(self):
+        pickle.dump(self._labels, open(os.path.join(self._head_path, 'all_labels.pkl'), 'wb'))
 
     @property
     def matrix(self):
@@ -109,5 +173,11 @@ class FFNCliqueDetector:
 
 
 if __name__ == "__main__":
-    ffn = FFNCliqueDetector(2000, 0.5, 20, True)
-    ffn.ffn_clique()
+    ffn = FFNCliqueDetector(500, 0.5, 15, True)
+    ffn.all_labels_to_pkl()
+    # for motifs, extra in [(True, False), (False, True), (True, True)]:
+    # for motifs, extra in [(False, True)]:
+    #     ffn.use_motifs = motifs
+    #     ffn.use_extra = extra
+    #     print("Features used: motifs - %r, other features - %r" % (motifs, extra))
+    #     ffn.ffn_clique()
