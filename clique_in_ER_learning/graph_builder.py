@@ -112,15 +112,15 @@ class GraphBuilder:
 
 
 class MotifCalculator:
-    def __init__(self, params, graph, dir_path, gpu):
+    def __init__(self, params, graph, dir_path, gpu, device):
         self._params = params
         self._graph = graph
         self._dir_path = dir_path
         self._clique_motifs = []
         self._motif_mat = None
         self._motif_features = {
-            "motif3": FeatureMeta(nth_nodes_motif(3, gpu=gpu), {"m3"}),
-            "motif4": FeatureMeta(nth_nodes_motif(4, gpu=gpu), {"m4"})
+            "motif3": FeatureMeta(nth_nodes_motif(3, gpu=gpu, device=device), {"m3"}),
+            "motif4": FeatureMeta(nth_nodes_motif(4, gpu=gpu, device=device), {"m4"})
         }
         self._calculate_expected_values()
         self._calculate_motif_matrix()

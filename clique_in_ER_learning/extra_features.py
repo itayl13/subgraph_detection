@@ -90,9 +90,11 @@ class ExtraFeatures:
             for run in range(num_runs):
                 # Preparation
                 gnx = self._gnxs[run]
-                motif_matrix = self._matrix[range(run * self._params['vertices'], (run + 1) * self._params['vertices']), :]
+                motif_matrix = self._matrix[range(run * self._params['vertices'],
+                                                  (run + 1) * self._params['vertices']), :]
                 expected_clique = [self._mp.motif_expected_clique_vertex(motif) for motif in self._clique_motifs]
-                expected_non_clique = [self._mp.motif_expected_non_clique_vertex(motif) for motif in self._clique_motifs]
+                expected_non_clique = [self._mp.motif_expected_non_clique_vertex(motif)
+                                       for motif in self._clique_motifs]
                 means = np.mean(motif_matrix, axis=0)
                 stds = np.std(motif_matrix, axis=0)
                 log_expected_clique = np.log(expected_clique)
@@ -100,15 +102,19 @@ class ExtraFeatures:
                 zscored_expected_clique = np.divide((expected_clique - means), stds)
                 zscored_expected_non_clique = np.divide((expected_non_clique - means), stds)
                 motif_matrix_residual, _, _ = self._residual(motif_matrix=motif_matrix, gnx=gnx)
-                cc = np.divide(motif_matrix[:, 0], np.array([gnx.degree(v) * (gnx.degree(v) - 1)
-                                                             for v in range(self._params['vertices'])]))
+                cc = np.divide(motif_matrix[:, 0],
+                               np.array([gnx.degree(v) * (gnx.degree(v) - 1) * (1 if self._params['directed'] else 0.5)
+                                         for v in range(self._params['vertices'])]))
                 sums = [(i, sum(motif_matrix_residual[i, :])) for i in range(self._params['vertices'])]
                 sums.sort(key=itemgetter(1), reverse=True)
                 top_sum = [v[0] for v in sums[:int(self._params['vertices'] / 10)]]
                 bitmat = np.zeros((len(top_sum), self._params['vertices']))
                 for i in range(len(top_sum)):
                     for j in range(self._params['vertices']):
-                        bitmat[i, j] = 1 if gnx.has_edge(top_sum[i], j) and gnx.has_edge(j, top_sum[i]) else 0
+                        if self._params['directed']:
+                            bitmat[i, j] = 1 if gnx.has_edge(top_sum[i], j) and gnx.has_edge(j, top_sum[i]) else 0
+                        else:
+                            bitmat[i, j] = 1 if gnx.has_edge(top_sum[i], j) else 0
                 bitsum = np.sum(bitmat, axis=0)
 
                 # Calculating
@@ -120,7 +126,8 @@ class ExtraFeatures:
                     zscored_motif_vector = np.divide((motif_vector - means), stds)
                     reg_motif_vector = motif_matrix_residual[v, :]
 
-                    neighbors = set(gnx.successors(v)).intersection(set(gnx.predecessors(v)))
+                    neighbors = set(gnx.successors(v)).intersection(set(gnx.predecessors(v))) \
+                        if self._params['directed'] else set(gnx.neighbors(v))
                     neighbor_cc = [(v, cc[v]) for v in neighbors]
                     neighbor_cc.sort(key=itemgetter(1), reverse=True)
                     top_neighbors = neighbor_cc[:self._params['clique_size']]
@@ -151,4 +158,4 @@ class ExtraFeatures:
             extra_non_clique = extra_features_matrix[[i for i in range(len(self._all_labels))
                                                       if not self._all_labels[i]], :]
             pickle.dump(extra_features_matrix, open(os.path.join(self._head_path, 'additional_features.pkl'), 'wb'))
-        return extra_clique, extra_non_clique
+        return extra_clique, extra_non_clique, extra_features_matrix

@@ -29,7 +29,7 @@ class CliqueInERDetector:
         self._data = GraphBuilder(self._params, self._dir_path)
         self._graph = self._data.graph()
         self._labels = self._data.labels()
-        self._motif_calc = MotifCalculator(self._params, self._graph, self._dir_path, gpu=True)
+        self._motif_calc = MotifCalculator(self._params, self._graph, self._dir_path, gpu=True, device=2)
         self._motif_matrix = self._motif_calc.motif_matrix(motif_picking=self._motif_calc.clique_motifs())
 #        self.detect_clique()
 

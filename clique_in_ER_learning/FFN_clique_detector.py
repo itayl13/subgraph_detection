@@ -53,7 +53,7 @@ class FFNCliqueDetector:
             data = GraphBuilder(self._params, dir_path)
             gnx = data.graph()
             labels = data.labels()
-            mc = MotifCalculator(self._params, gnx, dir_path, gpu=True)
+            mc = MotifCalculator(self._params, gnx, dir_path, gpu=True, device=2)
             motif_matrix = mc.motif_matrix(motif_picking=mc.clique_motifs())
             self._matrix = motif_matrix if self._matrix is None else np.vstack((self._matrix, motif_matrix))
             if type(labels) == dict:
@@ -68,35 +68,36 @@ class FFNCliqueDetector:
         self._extra_parameters()
 
     def _scale_matrices(self):
-        scaler1 = StandardScaler()
-        self._clique_matrix = scaler1.fit_transform(self._clique_matrix.astype('float64'))
-        scaler2 = StandardScaler()
-        self._non_clique_matrix = scaler2.fit_transform(self._non_clique_matrix.astype('float64'))
+        scaler = StandardScaler()
+        scaler.fit(self._matrix)
+        self._clique_matrix = scaler.transform(self._clique_matrix.astype('float64'))
+        self._non_clique_matrix = scaler.transform(self._non_clique_matrix.astype('float64'))
 
     def _extra_parameters(self):
         ef = ExtraFeatures(self._params, self._key_name, self._head_path, self._matrix)
-        self._additional_clique, self._additional_non_clique = ef.calculate_extra_ftrs()
-        scaler1 = StandardScaler()
-        self._additional_clique = scaler1.fit_transform(self._additional_clique)
-        scaler2 = StandardScaler()
-        self._additional_non_clique = scaler2.fit_transform(self._additional_non_clique)
+        self._additional_clique, self._additional_non_clique, additional = ef.calculate_extra_ftrs()
+        scaler = StandardScaler()
+        scaler.fit(additional)
+        self._additional_clique = scaler.transform(self._additional_clique)
+        self._additional_non_clique = scaler.transform(self._additional_non_clique)
 
     def _layer_builder(self, model):
         model.add(tf.keras.layers.Dense(self._matrix.shape[1], activation=tf.nn.relu,
-                                        kernel_regularizer=tf.keras.regularizers.l2(l=0.001)))
+                                        kernel_regularizer=tf.keras.regularizers.l2(l=0.01)))
         model.add(
-            tf.keras.layers.Dense(50, activation=tf.nn.relu, kernel_regularizer=tf.keras.regularizers.l2(l=0.001)))
+            tf.keras.layers.Dense(50, activation=tf.nn.relu, kernel_regularizer=tf.keras.regularizers.l2(l=0.01)))
         model.add(tf.keras.layers.Dropout(rate=0.3))
         model.add(
-            tf.keras.layers.Dense(30, activation=tf.nn.relu, kernel_regularizer=tf.keras.regularizers.l2(l=0.001)))
+            tf.keras.layers.Dense(30, activation=tf.nn.relu, kernel_regularizer=tf.keras.regularizers.l2(l=0.01)))
         model.add(
-            tf.keras.layers.Dense(1, activation=tf.nn.sigmoid, kernel_regularizer=tf.keras.regularizers.l2(l=0.001)))
+            tf.keras.layers.Dense(1, activation=tf.nn.sigmoid, kernel_regularizer=tf.keras.regularizers.l2(l=0.01)))
         return model
 
     def _train_model(self, model, train_clique, train_non_clique, epochs):
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-        class_weights = {0: 1. / (self._params['vertices'] - self._params['clique_size']),
-                         1: 1. / self._params['clique_size']}
+        # class_weights = {0: 1. / (self._params['vertices'] - self._params['clique_size']),
+        #                  1: 1. / self._params['clique_size']}
+        class_weights = {0: 1./int(train_non_clique.shape[0] / 3.), 1: 1. / train_clique.shape[0]}
         for epoch in range(epochs):
             subsampled_indices = np.random.choice(train_non_clique.shape[0], int(train_non_clique.shape[0] / 3.),
                                                   replace=False)
@@ -127,10 +128,10 @@ class FFNCliqueDetector:
         for run in range(10):
             model = tf.keras.models.Sequential()
             model = self._layer_builder(model)
-            model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.01), loss='binary_crossentropy', metrics=['accuracy'])
-            train_clique, test_clique = train_test_split(clique_feature_matrix, test_size=0.5)
-            train_non_clique, test_non_clique = train_test_split(non_clique_feature_matrix, test_size=0.5)
-            model = self._train_model(model, train_clique, train_non_clique, epochs=100)
+            model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
+            train_clique, test_clique = train_test_split(clique_feature_matrix, test_size=0.2)
+            train_non_clique, test_non_clique = train_test_split(non_clique_feature_matrix, test_size=0.2)
+            model = self._train_model(model, train_clique, train_non_clique, epochs=1000)
 
             test_data = np.vstack((test_clique, test_non_clique))
             test_labels = np.vstack((np.ones((test_clique.shape[0], 1)), np.zeros((test_non_clique.shape[0], 1))))
@@ -173,11 +174,11 @@ class FFNCliqueDetector:
 
 
 if __name__ == "__main__":
-    ffn = FFNCliqueDetector(500, 0.5, 15, True)
-    ffn.all_labels_to_pkl()
+    ffn = FFNCliqueDetector(2000, 0.5, 20, True)
+    # ffn.all_labels_to_pkl()
     # for motifs, extra in [(True, False), (False, True), (True, True)]:
-    # for motifs, extra in [(False, True)]:
-    #     ffn.use_motifs = motifs
-    #     ffn.use_extra = extra
-    #     print("Features used: motifs - %r, other features - %r" % (motifs, extra))
-    #     ffn.ffn_clique()
+    for motifs, extra in [(True, True)]:
+        ffn.use_motifs = motifs
+        ffn.use_extra = extra
+        print("Features used: motifs - %r, other features - %r" % (motifs, extra))
+        ffn.ffn_clique()
