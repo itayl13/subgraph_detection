@@ -1,12 +1,9 @@
 import logging
 import time
 import os
-import multiprocessing
-from functools import partial
 import numpy as np
 import torch
 import torch.optim as optim
-from torch.autograd import Variable
 import nni
 from model import GCN
 from graph_measures.loggers import PrintLogger, multi_logger, EmptyLogger, CSVLogger, FileLogger
@@ -24,13 +21,14 @@ class ModelRunner:
         self.bar = 0.5
         self._lr = conf["lr"]
         self._is_nni = is_nni
+        self._device = torch.device('cuda:%d' % np.random.randint(4)) if torch.cuda.is_available() else torch.device('cpu')
 
     def _build_weighted_loss(self, labels):
         weights_list = []
         for i in range(labels.shape[0]):
             weights_list.append(self._weights_dict[labels[i].data.item()])
-        weights_tensor = torch.DoubleTensor(weights_list)
-        self._criterion = torch.nn.BCELoss(weight=weights_tensor)
+        weights_tensor = torch.DoubleTensor(weights_list).to(self._device)
+        self._criterion = torch.nn.BCELoss(weight=weights_tensor).to(self._device)
 
     @property
     def logger(self):
@@ -58,8 +56,6 @@ class ModelRunner:
     # verbose = 1 - print test results
     # verbose = 2 - print train for each epoch and test results
     def run(self, verbose=2):
-        if torch.cuda.is_available():
-            torch.device('cuda', 1)
         if self._is_nni:
             verbose = 0
         model = self._get_model()
@@ -80,7 +76,7 @@ class ModelRunner:
         for epoch in range(epochs):
             self._train(epoch, model, verbose)
             # /----------------------  FOR NNI  -------------------------
-            if epoch % 10 == 0:
+            if epoch % 5 == 0:
                 test_res = self.test(model, verbose=0)
                 test_auc = test_res["auc"]
                 if self._is_nni:
@@ -90,10 +86,15 @@ class ModelRunner:
                         self._logger.debug('Epoch: {:04d} '.format(epoch + 1) +
                                            'Stopped Early')
                     break
+        if self._is_nni:
+            test_res = self.test(model, verbose=0)
+            test_auc = test_res["auc"]
+            nni.report_final_result(test_auc)
         return model
 
     def _train(self, epoch, model, verbose=2):
         model_ = model["model"]
+        model_ = model_.to(self._device)
         optimizer = model["optimizer"]
         graphs_order = np.arange(len(model["training_labels"]))
         np.random.shuffle(graphs_order)
@@ -103,9 +104,9 @@ class ModelRunner:
         # for param_group in optimizer.param_groups:
         #     param_group['lr'] = lr
         for i, idx in enumerate(graphs_order):
-            training_mat = Variable(torch.from_numpy(model["training_mats"][idx]))
-            training_adj = Variable(torch.from_numpy(model["training_adjs"][idx].astype('double')))
-            labels = torch.DoubleTensor(model["training_labels"][idx])
+            training_mat = torch.from_numpy(model["training_mats"][idx]).to(self._device)
+            training_adj = torch.from_numpy(model["training_adjs"][idx].astype('double')).to(self._device)
+            labels = torch.DoubleTensor(model["training_labels"][idx]).to(self._device)
             model_.train()  # set train mode on so the dropouts will work. in eval() it's off.
             optimizer.zero_grad()
             output = model_(*[training_mat, training_adj, self._clique_size])
@@ -138,9 +139,9 @@ class ModelRunner:
 
     def test(self, model=None, verbose=2):
         model_ = model["model"]
-        test_mat = Variable(torch.from_numpy(model["test_mat"]))
-        test_adj = Variable(torch.from_numpy(model["test_adj"].astype('double')))
-        test_labels = torch.DoubleTensor(model["test_labels"])
+        test_mat = torch.from_numpy(model["test_mat"]).to(self._device)
+        test_adj = torch.from_numpy(model["test_adj"].astype('double')).to(self._device)
+        test_labels = torch.DoubleTensor(model["test_labels"]).to(self._device)
 
         model_.eval()
         output = model_(*[test_mat, test_adj, self._clique_size])
@@ -156,16 +157,20 @@ class ModelRunner:
                               "auc= {:.4f}".format(auc_test))
         result = {"loss": loss_test.data.item(), "precision": prec_test, "auc": auc_test,
                   "positives": len(positives), "true_positives": len(true_positives)}
-        if self._is_nni:
-            nni.report_intermediate_result(auc_test)
         return result
 
     def precision(self, output, labels, mode='train'):
         preds = output.data.type_as(labels)
         if mode == 'train':
             bars = [i / 100. for i in range(1, 101)]
-            pool = multiprocessing.Pool()
-            precisions = pool.map(partial(self.precision_by_bar, preds=preds, labels=labels), [bar for bar in bars])
+            precisions = np.zeros(len(bars))
+            for i, bar in enumerate(bars):
+                rounded_preds = (preds + (bar - 0.5)).round()
+                positives = [i for i in range(labels.shape[0]) if rounded_preds[i].data.item() > 0.5]
+                if len(positives) == 0:
+                    continue
+                true_positives = [i for i in positives if labels.data.tolist()[i] > 0.5]
+                precisions[i] = float(len(true_positives)) / len(positives)
             best_bar_idx = np.argmax(precisions)
             self.bar = bars[best_bar_idx]
             prec = precisions[best_bar_idx]
@@ -188,7 +193,7 @@ class ModelRunner:
     @staticmethod
     def auc(output, labels):
         preds = output.data.type_as(labels)
-        return roc_auc_score(labels, preds)
+        return roc_auc_score(labels.cpu(), preds.cpu())
 
 
 def aggregate_results(res_list):

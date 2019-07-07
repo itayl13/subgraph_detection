@@ -1,6 +1,10 @@
 import tensorflow as tf
-from clique_in_ER_learning.graph_builder import GraphBuilder, MotifCalculator
-from clique_in_ER_learning.extra_features import ExtraFeatures
+try:
+    from clique_in_ER_learning.graph_builder import GraphBuilder, MotifCalculator
+    from clique_in_ER_learning.extra_features import ExtraFeatures
+except ModuleNotFoundError:
+    from graph_builder import GraphBuilder, MotifCalculator
+    from extra_features import ExtraFeatures
 import os
 import pickle
 import numpy as np
@@ -169,6 +173,10 @@ class FFNCliqueDetector:
         return self._non_clique_matrix
 
     @property
+    def additional_features(self):
+        return self._additional_clique, self._additional_non_clique
+
+    @property
     def labels(self):
         return self._labels
 
@@ -182,3 +190,4 @@ if __name__ == "__main__":
         ffn.use_extra = extra
         print("Features used: motifs - %r, other features - %r" % (motifs, extra))
         ffn.ffn_clique()
+

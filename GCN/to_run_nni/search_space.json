@@ -1,0 +1,124 @@
+
+{
+    "input_vec":{
+        "_type":"choice",
+        "_value":[
+            ["Degree"],
+            ["In-Degree", "Out-Degree"],
+            ["Degree", "In-Degree", "Out-Degree"],
+            ["Degree", "In-Degree", "Out-Degree", "Betweenness", "BFS"],
+            ["Motif_3"],
+            ["Degree", "Motif_3"],
+            ["In-Degree", "Out-Degree", "Motif_3"],
+            ["Degree", "In-Degree", "Out-Degree", "Motif_3"],
+            ["Motif_3", "additional_features"],
+            ["In-Degree", "Out-Degree", "Motif_3", "additional_features"],
+            ["Degree", "In-Degree", "Out-Degree", "Betweenness", "BFS", "Motif_3", "additional_features"]
+        ]
+    },
+    "optimizer":{"_type":"choice","_value":["ADAM", "SGD"]},
+    "learning_rate":{"_type":"uniform","_value":[1e-6, 0.1]},
+    "dropout":{"_type":"uniform","_value":[0, 0.5]},
+    "regularization":{"_type":"uniform","_value":[0, 0.5]},
+    "epochs":{"_type":"choice","_value":[50, 100, 200, 400]},
+    "layers_config": {
+
+        "_type": "choice",
+
+        "_value": [
+            {
+                "_name": "3_layers",
+                "h1_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                },
+                "h2_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                },
+                "h3_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                }
+            },
+            {
+                "_name": "4_layers",
+                "h1_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                },
+                "h2_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                },
+                "h3_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                },
+                "h4_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                }
+            },
+            {
+                "_name": "5_layers",
+                "h1_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                },
+                "h2_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                },
+                "h3_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                },
+                "h4_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                },
+                "h5_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                }
+            },
+            {
+                "_name": "6_layers",
+                "h1_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                },
+                "h2_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                },
+                "h3_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                },
+                "h4_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                },
+                "h5_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                },
+                "h6_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 5]
+                }
+            }
+
+        ]
+    },
+    "class_weights":
+    {
+        "_type": "choice",
+        "_value":[
+            {"_name": "1/class"},
+            {"_name": "1/class^2"}
+        ]
+    }
+}

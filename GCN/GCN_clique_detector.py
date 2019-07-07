@@ -7,12 +7,16 @@ from gcn import main_gcn
 from sklearn.preprocessing import StandardScaler
 from torch.optim import Adam, SGD
 sys.path.append(os.path.abspath('.'))
-sys.path.append(os.path.abspath('graph_calculations'))
+sys.path.append(os.path.abspath('graph_calculations/'))
 sys.path.append(os.path.abspath('graph_calculations/graph_measures/'))
 sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/'))
 sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/vertices/'))
 sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
 sys.path.append(os.path.abspath('graph_calculations/graph_measures/graph_infra/'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_processor/'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_meta/'))
 
 
 class GCNCliqueDetector:
@@ -31,7 +35,7 @@ class GCNCliqueDetector:
         self._key_name = 'n_' + str(self._params["vertices"]) + '_p_' + str(
             self._params["probability"]) + '_size_' + str(
             self._params["clique_size"]) + ('_d' if self._params["directed"] else '_ud')
-        self._head_path = os.path.join('graph_calculations', 'pkl', self._key_name + '_runs')
+        self._head_path = os.path.join(os.path.dirname(__file__), 'graph_calculations', 'pkl', self._key_name + '_runs')
         self._norm_adj = norm_adj
         self._load_data()
         self._nni = nni
@@ -161,6 +165,9 @@ if __name__ == "__main__":
     #                     Betweenness Centrality ('Betweenness'), BFS moments ('BFS'), motifs ('Motif_3', 'Motif_4') and
     #                     the extra features based on the motifs ('additional_features')
 
-    gcn_detector = GCNCliqueDetector(500, 0.5, 15, True, features=['Motif_3', 'Motif_4', 'additional_features'],
+    # gcn_detector = GCNCliqueDetector(500, 0.5, 15, True, features=['Motif_3', 'Motif_4', 'additional_features'],
+    #                                  norm_adj=True)
+    # gcn_detector.train()
+    gcn_detector = GCNCliqueDetector(500, 0.5, 15, True, features=['Motif_3', 'additional_features'],
                                      norm_adj=True)
     gcn_detector.train()

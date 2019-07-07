@@ -12,8 +12,6 @@ class GCN(Module):  # Full GCN structure
         super(GCN, self).__init__()
         if layer_type is None:
             layer_type = GraphConvolution
-        if torch.cuda.is_available():
-            torch.device('cuda', 1)
         hidden_layers = [n_features] + hidden_layers + [1]    # input_dim, hidden_layer0, ..., hidden_layerN, 1
         self._layers = ModuleList([layer_type(first, second, double=double)
                                    for first, second in zip(hidden_layers[:-1], hidden_layers[1:])])
@@ -40,12 +38,12 @@ class GraphConvolution(Module):  # Symmetric GCN layer
 
     def __init__(self, in_features, out_features, bias=True, double=True):
         super(GraphConvolution, self).__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.weight = Parameter(torch.DoubleTensor(2 * in_features, out_features)) if double else \
-            Parameter(torch.DoubleTensor(in_features, out_features))
+        self.in_features = int(in_features)
+        self.out_features = int(out_features)
+        self.weight = Parameter(torch.DoubleTensor(2 * self.in_features, self.out_features)) if double else \
+            Parameter(torch.DoubleTensor(self.in_features, self.out_features))
         if bias:
-            self.bias = Parameter(torch.DoubleTensor(out_features))
+            self.bias = Parameter(torch.DoubleTensor(self.out_features))
         else:
             self.register_parameter('bias', None)
         self.init_weights()

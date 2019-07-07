@@ -18,7 +18,7 @@ class ExtraFeatures:
         self._all_labels = None
         self._labels_by_run = None
         self._load_other_things()
-        
+
     def _load_other_things(self):
         graph_ids = os.listdir(self._head_path)
         if 'additional_features.pkl' in graph_ids:
@@ -38,10 +38,10 @@ class ExtraFeatures:
                 self._all_labels += new_labels
             else:
                 self._all_labels += labels
-        self._mp = MotifProbability(self._params['vertices'], self._params['probability'], 
+        self._mp = MotifProbability(self._params['vertices'], self._params['probability'],
                                     self._params['clique_size'], self._params['directed'])
         self._clique_motifs = self._mp.get_3_clique_motifs(3) + self._mp.get_3_clique_motifs(4)
-            
+
     def _residual(self, motif_matrix, gnx):
         expected_clique = [self._mp.motif_expected_clique_vertex(motif) for motif in self._clique_motifs]
         res = np.zeros(motif_matrix.shape)
@@ -58,9 +58,9 @@ class ExtraFeatures:
                                                               ) + reg.intercept_))
             res_expected_c.append(expected_clique[motif] - ((reg.coef_[0] * (
                     2 * self._params['probability'] * (self._params['vertices'] - 1) + self._params['clique_size'] - 1)
-                                                              ) + reg.intercept_))
+                                                             ) + reg.intercept_))
         return res, res_expected_c, res_expected_nc
-    
+
     def calculate_extra_ftrs(self):
         if os.path.exists(os.path.join(self._head_path, 'additional_features.pkl')):
             extra_features_matrix = pickle.load(open(os.path.join(self._head_path, 'additional_features.pkl'), 'rb'))
@@ -68,23 +68,23 @@ class ExtraFeatures:
             extra_non_clique = extra_features_matrix[[i for i in range(len(self._all_labels))
                                                       if not self._all_labels[i]], :]
         else:
-            dot_excl = []      # dot product with expected clique
-            dot_exncl = []     # dot product with expected non clique
-            proj_excl = []     # projection on expected clique
-            proj_exncl = []    # projection on expected non clique
-            dist_excl = []     # distance from expected clique
-            dist_exncl = []    # distance from expected non clique
-            lgdist_excl = []   # distance of log vector from log expected clique
+            dot_excl = []  # dot product with expected clique
+            dot_exncl = []  # dot product with expected non clique
+            proj_excl = []  # projection on expected clique
+            proj_exncl = []  # projection on expected non clique
+            dist_excl = []  # distance from expected clique
+            dist_exncl = []  # distance from expected non clique
+            lgdist_excl = []  # distance of log vector from log expected clique
             lgdist_exncl = []  # distance of log vector from log expected non clique
-            zproj_excl = []    # projection of z-scored vector on z-scored expected clique
-            zproj_exncl = []   # projection of z-scored vector on z-scored expected non clique
-            zdist_excl = []    # distance of z-scored vector from z-scored expected clique
-            zdist_exncl = []   # distance of z-scored vector from z-scored expected non clique
+            zproj_excl = []  # projection of z-scored vector on z-scored expected clique
+            zproj_exncl = []  # projection of z-scored vector on z-scored expected non clique
+            zdist_excl = []  # distance of z-scored vector from z-scored expected clique
+            zdist_exncl = []  # distance of z-scored vector from z-scored expected non clique
             sum_motifs = []
-            regsum = []        # sum all motif residuals after linear regression of motif(degree) for every motif.
-            tnbr_sum = []      # num. neighbors to which a vertex is connected (<->) of top 10% vertices by sum motifs.
-            cc4 = []           # clustering coefficient
-            tcc = []           # mean of cc for |clique-size| neighbors (<->) with this largest value.
+            regsum = []  # sum all motif residuals after linear regression of motif(degree) for every motif.
+            tnbr_sum = []  # num. neighbors to which a vertex is connected (<->) of top 10% vertices by sum motifs.
+            cc4 = []  # clustering coefficient
+            tcc = []  # mean of cc for |clique-size| neighbors (<->) with this largest value.
 
             num_runs = len(self._gnxs)
             for run in range(num_runs):

@@ -5,8 +5,20 @@ import numpy as np
 import itertools
 import os
 import pickle
+import sys
+sys.path.append(os.path.abspath('.'))
+sys.path.append(os.path.abspath('graph_calculations/'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/vertices/'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/graph_infra/'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_processor/'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_meta/'))
 from betweenness_centrality import BetweennessCentralityCalculator
-from bfs_moments import BfsMomentsCalculator
+from vertices.bfs_moments import BfsMomentsCalculator
 from feature_calculators import FeatureMeta
 from graph_features import GraphFeatures
 from features_algorithms.accelerated_graph_features.motifs import nth_nodes_motif, MotifsNodeCalculator
@@ -122,6 +134,14 @@ class FeatureCalculator:
             'Motif_4': self._calc_motif4,
             'additional_features': self._calc_additional_features
         }
+        if "Motif_3" in features and "Motif_4" in features:
+            self._motif_choice = "All_Motifs"
+        elif "Motif_3" in features and "Motif_4" not in features:
+            self._motif_choice = "Motif_3"
+        elif "Motif_4" in features and "Motif_3" not in features:
+            self._motif_choice = "Motif_4"
+        else:
+            self._motif_choice = None
         self._calculate_features()
 
     def _calculate_features(self):
@@ -156,16 +176,33 @@ class FeatureCalculator:
         return np.array([d[1] for d in degrees]).reshape(-1, 1)
 
     def _calc_betweenness(self):
-        raw_ftr = GraphFeatures(self._graph, FeatureMeta(BetweennessCentralityCalculator, {"betweenness"}),
-                                self._dir_path)
+        raw_ftr = GraphFeatures(self._graph,
+                                {"betweenness": FeatureMeta(BetweennessCentralityCalculator, {"betweenness"})},
+                                dir_path=self._dir_path)
         raw_ftr.build(should_dump=True)
-        return FeaturesProcessor(raw_ftr).as_matrix(norm_func=log_norm)
+        feature_dict = raw_ftr["betweenness"]._features
+        feature_mx = np.zeros((len(feature_dict), 1))
+        for i in feature_dict.keys():
+            feature_mx[i] = feature_dict[i]
+        feature_mx[np.isnan(feature_mx)] = 1e-10
+        not_log_normed = np.abs(feature_mx)
+        not_log_normed[not_log_normed < 1e-10] = 1e-10
+        return np.log(not_log_normed)
 
     def _calc_bfs(self):
-        raw_ftr = GraphFeatures(self._graph, FeatureMeta(BfsMomentsCalculator, {"bfs"}),
-                                self._dir_path)
+        raw_ftr = GraphFeatures(self._graph,
+                                {"bfs_moments": FeatureMeta(BfsMomentsCalculator, {"bfs"})},
+                                dir_path=self._dir_path)
         raw_ftr.build(should_dump=True)
-        return FeaturesProcessor(raw_ftr).as_matrix(norm_func=log_norm)
+        feature_dict = raw_ftr["bfs_moments"]._features
+        feature_mx = np.zeros((len(feature_dict), len(list(feature_dict.values())[0][0])))
+        for i in feature_dict.keys():
+            for j in range(len(feature_dict[i][0])):
+                feature_mx[i, j] = feature_dict[i][0][j]
+        feature_mx[np.isnan(feature_mx)] = 1e-10
+        not_log_normed = np.abs(feature_mx)
+        not_log_normed[not_log_normed < 1e-10] = 1e-10
+        return np.log(not_log_normed)
 
     def _calc_motif3(self):
         # FOR NOW, NO GPU FOR US
@@ -177,14 +214,23 @@ class FeatureCalculator:
                 motif3 = np.array(pkl3._features)
             else:
                 motif3 = np.array(pkl3)
-            mp = MotifProbability(self._params['vertices'], self._params['probability'],
-                                  self._params['clique_size'], self._params['directed'])
-            clique_motifs = mp.get_3_clique_motifs(3)
-            return motif3[:, clique_motifs]
+            if self._motif_choice == "All_Motifs":
+                mp = MotifProbability(self._params['vertices'], self._params['probability'],
+                                      self._params['clique_size'], self._params['directed'])
+                clique_motifs = mp.get_3_clique_motifs(3)
+                return motif3[:, clique_motifs]
+            else:
+                return motif3
         raw_ftr = GraphFeatures(self._graph, FeatureMeta(nth_nodes_motif(3, gpu=False, device=2), {"m3"}),
                                 dir_path=self._dir_path)
         raw_ftr.build(should_dump=True)
-        return FeaturesProcessor(raw_ftr).as_matrix(norm_func=log_norm)
+        if self._motif_choice == "All_Motifs":
+            mp = MotifProbability(self._params['vertices'], self._params['probability'],
+                                  self._params['clique_size'], self._params['directed'])
+            clique_motifs = mp.get_3_clique_motifs(3)
+            return FeaturesProcessor(raw_ftr).as_matrix(norm_func=log_norm)[:, clique_motifs]
+        else:
+            return FeaturesProcessor(raw_ftr).as_matrix(norm_func=log_norm)
 
     def _calc_motif4(self):
         # FOR NOW, NO GPU FOR US
@@ -196,24 +242,48 @@ class FeatureCalculator:
                 motif4 = np.array(pkl4._features)
             else:
                 motif4 = np.array(pkl4)
+            if self._motif_choice == "All_Motifs":
+                mp = MotifProbability(self._params['vertices'], self._params['probability'],
+                                      self._params['clique_size'], self._params['directed'])
+                motif3_count = 1 + mp.get_3_clique_motifs(3)[-1]  # The full 3 clique is the last motif 3.
+                clique_motifs = [m - motif3_count for m in mp.get_3_clique_motifs(4)]
+                return motif4[:, clique_motifs]
+            else:
+                return motif4
+        raw_ftr = GraphFeatures(self._graph, FeatureMeta(nth_nodes_motif(4, gpu=False, device=2), {"m4"}),
+                                dir_path=self._dir_path)
+        raw_ftr.build(should_dump=True)
+        if self._motif_choice == "All_Motifs":
             mp = MotifProbability(self._params['vertices'], self._params['probability'],
                                   self._params['clique_size'], self._params['directed'])
             motif3_count = 1 + mp.get_3_clique_motifs(3)[-1]  # The full 3 clique is the last motif 3.
             clique_motifs = [m - motif3_count for m in mp.get_3_clique_motifs(4)]
-            return motif4[:, clique_motifs]
-        raw_ftr = GraphFeatures(self._graph, FeatureMeta(nth_nodes_motif(4, gpu=False, device=2), {"m4"}),
-                                dir_path=self._dir_path)
-        raw_ftr.build(should_dump=True)
-        return FeaturesProcessor(raw_ftr).as_matrix(norm_func=log_norm)
+            return FeaturesProcessor(raw_ftr).as_matrix(norm_func=log_norm)[:, clique_motifs]
+        else:
+            return FeaturesProcessor(raw_ftr).as_matrix(norm_func=log_norm)
 
     def _calc_additional_features(self):
         # MUST BE AFTER CALCULATING MOTIFS
-        if not all([os.path.exists(os.path.join(self._dir_path, "Motif_4.pkl")),
-                    os.path.exists(os.path.join(self._dir_path, "Motif_3.pkl"))]):
+        if self._motif_choice is None:
             raise KeyError("Motifs must be calculated prior to the additional features")
-        motif_matrix = np.hstack((pickle.load(open(os.path.join(self._dir_path, "Motif_3.pkl"), "rb")),
-                                  pickle.load(open(os.path.join(self._dir_path, "Motif_4.pkl"), "rb"))))
-        add_ftrs = AdditionalFeatures(self._params, self._graph, self._dir_path, motif_matrix)
+        else:
+            motif_matrix = np.hstack((pickle.load(open(os.path.join(self._dir_path, "Motif_3.pkl"), "rb")),
+                                      pickle.load(open(os.path.join(self._dir_path, "Motif_4.pkl"), "rb"))))
+            if self._motif_choice == "All_Motifs":
+                add_ftrs = AdditionalFeatures(self._params, self._graph, self._dir_path, motif_matrix)
+            elif self._motif_choice == "Motif_3":
+                mp = MotifProbability(self._params['vertices'], self._params['probability'],
+                                      self._params['clique_size'], self._params['directed'])
+                motif3_count = 1 + mp.get_3_clique_motifs(3)[-1]  # The full 3 clique is the last motif 3.
+                add_ftrs = AdditionalFeatures(self._params, self._graph, self._dir_path, motif_matrix,
+                                              motifs=list(range(motif3_count)))
+            else:
+                mp = MotifProbability(self._params['vertices'], self._params['probability'],
+                                      self._params['clique_size'], self._params['directed'])
+                motif3_count = 1 + mp.get_3_clique_motifs(3)[-1]  # The full 3 clique is the last motif 3.
+                motif4_count = 1 + mp.get_3_clique_motifs(4)[-1]  # The full 4 clique is the last motif 4.
+                add_ftrs = AdditionalFeatures(self._params, self._graph, self._dir_path, motif_matrix,
+                                              motifs=list(range(motif3_count, motif4_count)))
         return add_ftrs.calculate_extra_ftrs()
 
     @staticmethod
