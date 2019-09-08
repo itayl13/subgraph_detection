@@ -6,23 +6,37 @@ import itertools
 import os
 import pickle
 import sys
-sys.path.append(os.path.abspath('.'))
-sys.path.append(os.path.abspath('graph_calculations/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/vertices/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/graph_infra/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_processor/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_meta/'))
+import torch
+
+if torch.version.cuda.split('.')[0] == '10':
+    sys.path.append(os.path.abspath('.'))
+    sys.path.append(os.path.abspath('graph_calculations/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_algorithms/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_algorithms/accelerated_graph_features/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_algorithms/vertices/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_infra/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/graph_infra/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_processor/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_infra/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_meta/'))
+else:
+    sys.path.append(os.path.abspath('.'))
+    sys.path.append(os.path.abspath('graph_calculations/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/vertices/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures/graph_infra/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_processor/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
+    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_meta/'))
 from betweenness_centrality import BetweennessCentralityCalculator
 from vertices.bfs_moments import BfsMomentsCalculator
 from feature_calculators import FeatureMeta
 from graph_features import GraphFeatures
 from features_algorithms.accelerated_graph_features.motifs import nth_nodes_motif, MotifsNodeCalculator
-from features_processor import FeaturesProcessor, log_norm
 from additional_features import AdditionalFeatures, MotifProbability
 
 
@@ -119,7 +133,7 @@ class GraphBuilder:
 
 
 class FeatureCalculator:
-    def __init__(self, params, graph, dir_path, features):
+    def __init__(self, params, graph, dir_path, features, gpu=False,  device=2):
         self._params = params
         self._graph = graph
         self._dir_path = dir_path
@@ -134,6 +148,8 @@ class FeatureCalculator:
             'Motif_4': self._calc_motif4,
             'additional_features': self._calc_additional_features
         }
+        self._gpu = gpu
+        self._device = device
         if "Motif_3" in features and "Motif_4" in features:
             self._motif_choice = "All_Motifs"
         elif "Motif_3" in features and "Motif_4" not in features:
@@ -184,10 +200,7 @@ class FeatureCalculator:
         feature_mx = np.zeros((len(feature_dict), 1))
         for i in feature_dict.keys():
             feature_mx[i] = feature_dict[i]
-        feature_mx[np.isnan(feature_mx)] = 1e-10
-        not_log_normed = np.abs(feature_mx)
-        not_log_normed[not_log_normed < 1e-10] = 1e-10
-        return np.log(not_log_normed)
+        return self._log_norm(feature_mx)
 
     def _calc_bfs(self):
         raw_ftr = GraphFeatures(self._graph,
@@ -199,10 +212,7 @@ class FeatureCalculator:
         for i in feature_dict.keys():
             for j in range(len(feature_dict[i][0])):
                 feature_mx[i, j] = feature_dict[i][0][j]
-        feature_mx[np.isnan(feature_mx)] = 1e-10
-        not_log_normed = np.abs(feature_mx)
-        not_log_normed[not_log_normed < 1e-10] = 1e-10
-        return np.log(not_log_normed)
+        return self._log_norm(feature_mx)
 
     def _calc_motif3(self):
         # FOR NOW, NO GPU FOR US
@@ -221,16 +231,23 @@ class FeatureCalculator:
                 return motif3[:, clique_motifs]
             else:
                 return motif3
-        raw_ftr = GraphFeatures(self._graph, FeatureMeta(nth_nodes_motif(3, gpu=False, device=2), {"m3"}),
+        raw_ftr = GraphFeatures(self._graph,
+                                {"motif3": FeatureMeta(nth_nodes_motif(3, gpu=self._gpu, device=self._device), {"m3"})},
                                 dir_path=self._dir_path)
         raw_ftr.build(should_dump=True)
+        feature = raw_ftr['motif3']._features
+        if type(feature) == dict:
+            motif_matrix = self._to_matrix(feature)
+        else:
+            motif_matrix = feature
+        normed_matrix = self._log_norm(motif_matrix)
         if self._motif_choice == "All_Motifs":
             mp = MotifProbability(self._params['vertices'], self._params['probability'],
                                   self._params['clique_size'], self._params['directed'])
             clique_motifs = mp.get_3_clique_motifs(3)
-            return FeaturesProcessor(raw_ftr).as_matrix(norm_func=log_norm)[:, clique_motifs]
+            return normed_matrix[:, clique_motifs]
         else:
-            return FeaturesProcessor(raw_ftr).as_matrix(norm_func=log_norm)
+            return normed_matrix
 
     def _calc_motif4(self):
         # FOR NOW, NO GPU FOR US
@@ -250,34 +267,44 @@ class FeatureCalculator:
                 return motif4[:, clique_motifs]
             else:
                 return motif4
-        raw_ftr = GraphFeatures(self._graph, FeatureMeta(nth_nodes_motif(4, gpu=False, device=2), {"m4"}),
+        raw_ftr = GraphFeatures(self._graph,
+                                {"motif4": FeatureMeta(nth_nodes_motif(4, gpu=self._gpu, device=self._device), {"m4"})},
                                 dir_path=self._dir_path)
         raw_ftr.build(should_dump=True)
+        feature = raw_ftr['motif4']._features
+        if type(feature) == dict:
+            motif_matrix = self._to_matrix(feature)
+        else:
+            motif_matrix = feature
+        normed_matrix = self._log_norm(motif_matrix)
         if self._motif_choice == "All_Motifs":
             mp = MotifProbability(self._params['vertices'], self._params['probability'],
                                   self._params['clique_size'], self._params['directed'])
             motif3_count = 1 + mp.get_3_clique_motifs(3)[-1]  # The full 3 clique is the last motif 3.
             clique_motifs = [m - motif3_count for m in mp.get_3_clique_motifs(4)]
-            return FeaturesProcessor(raw_ftr).as_matrix(norm_func=log_norm)[:, clique_motifs]
+            return normed_matrix[:, clique_motifs]
         else:
-            return FeaturesProcessor(raw_ftr).as_matrix(norm_func=log_norm)
+            return normed_matrix
 
     def _calc_additional_features(self):
         # MUST BE AFTER CALCULATING MOTIFS
         if self._motif_choice is None:
             raise KeyError("Motifs must be calculated prior to the additional features")
         else:
-            motif_matrix = np.hstack((pickle.load(open(os.path.join(self._dir_path, "Motif_3.pkl"), "rb")),
-                                      pickle.load(open(os.path.join(self._dir_path, "Motif_4.pkl"), "rb"))))
             if self._motif_choice == "All_Motifs":
+                motif_matrix = np.hstack((pickle.load(open(os.path.join(self._dir_path, "Motif_3.pkl"), "rb")),
+                                          pickle.load(open(os.path.join(self._dir_path, "Motif_4.pkl"), "rb"))))
                 add_ftrs = AdditionalFeatures(self._params, self._graph, self._dir_path, motif_matrix)
             elif self._motif_choice == "Motif_3":
+                motif_matrix = pickle.load(open(os.path.join(self._dir_path, "Motif_3.pkl"), "rb"))
                 mp = MotifProbability(self._params['vertices'], self._params['probability'],
                                       self._params['clique_size'], self._params['directed'])
                 motif3_count = 1 + mp.get_3_clique_motifs(3)[-1]  # The full 3 clique is the last motif 3.
                 add_ftrs = AdditionalFeatures(self._params, self._graph, self._dir_path, motif_matrix,
                                               motifs=list(range(motif3_count)))
             else:
+                motif_matrix = np.hstack((pickle.load(open(os.path.join(self._dir_path, "Motif_3.pkl"), "rb")),
+                                          pickle.load(open(os.path.join(self._dir_path, "Motif_4.pkl"), "rb"))))
                 mp = MotifProbability(self._params['vertices'], self._params['probability'],
                                       self._params['clique_size'], self._params['directed'])
                 motif3_count = 1 + mp.get_3_clique_motifs(3)[-1]  # The full 3 clique is the last motif 3.
@@ -289,12 +316,21 @@ class FeatureCalculator:
     @staticmethod
     def _to_matrix(motif_features):
         rows = len(motif_features.keys())
-        columns = len(motif_features[0].keys()) - 1
+        columns = len(motif_features[0])
         final_mat = np.zeros((rows, columns))
         for i in range(rows):
             for j in range(columns):
                 final_mat[i, j] = motif_features[i][j]
         return final_mat
+
+    @staticmethod
+    def _log_norm(feature_matrix):
+        if type(feature_matrix) == list:
+            feature_matrix = np.array(feature_matrix)
+        feature_matrix[np.isnan(feature_matrix)] = 1e-10
+        not_log_normed = np.abs(feature_matrix)
+        not_log_normed[not_log_normed < 1e-10] = 1e-10
+        return np.log(not_log_normed)
 
     @property
     def feature_matrix(self):
@@ -303,3 +339,48 @@ class FeatureCalculator:
     @property
     def adjacency_matrix(self):
         return self._adj_matrix
+
+
+def feature_calculation(v, p, cs, d, features, new_runs):
+    param_dict = {'vertices': v,
+                  'probability': p,
+                  'clique_size': cs,
+                  'directed': d,
+                  'features': features,
+                  'load_graph': False,
+                  'load_labels': False,
+                  'load_motifs': False}
+    key_name = 'n_' + str(v) + '_p_' + str(p) + '_size_' + str(cs) + ('_d' if d else '_ud')
+    head_path = os.path.join(os.path.dirname(__file__), 'graph_calculations', 'pkl', key_name + '_runs')
+    if not os.path.exists(head_path):
+        os.mkdir(head_path)
+        print("Made new directory")
+    graph_ids = os.listdir(head_path)
+    if 'additional_features.pkl' in graph_ids:
+            graph_ids.remove('additional_features.pkl')
+    if len(graph_ids) == 0 and new_runs == 0:
+        raise ValueError('No runs here!')
+
+    for run in range(len(graph_ids) + new_runs):
+            dir_path = os.path.join(head_path, key_name + "_run_" + str(run))
+            data = GraphBuilder(param_dict, dir_path)
+            gnx = data.graph()
+            _ = FeatureCalculator(param_dict, gnx, dir_path, param_dict['features'], gpu=True, device=2)
+
+
+if __name__ == "__main__":
+    # for sz, cl_sz in itertools.product([2000], range(42, 45)):
+    #     vert = sz
+    #     prob = 0.5
+    #     dire = False
+    #     cl_s = cl_sz
+    #     ftrs = ['Betweenness', 'BFS']
+    #     new_run_count = 0
+    #     feature_calculation(vert, prob, cl_s, dire, ftrs, new_run_count)
+    vert = 2000
+    prob = 0.5
+    dire = False
+    cl_s = 42
+    ftrs = ['BFS']
+    new_run_count = 0
+    feature_calculation(vert, prob, cl_s, dire, ftrs, new_run_count)

@@ -1,0 +1,88 @@
+
+{
+    "input_vec":{
+        "_type":"choice",
+        "_value":[
+            ["Degree"],
+            ["Motif_3"],
+            ["Degree", "Motif_3"],
+            ["Motif_3", "additional_features"],
+            ["Degree", "Motif_3", "additional_features"],
+            []
+        ]
+    },
+    "learning_rate":{"_type":"quniform","_value":[1e-6, 0.2, 1e-6]},
+    "dropout":{"_type":"uniform","_value":[0, 0.5]},
+    "regularization":{"_type":"uniform","_value":[0, 0.5]},
+    "epochs":{"_type":"quniform","_value":[20, 200, 10]},
+    "layers_config": {
+
+        "_type": "choice",
+
+        "_value": [
+            {
+                "_name": "3_layers",
+                "h1_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 10]
+                },
+                "h2_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 10]
+                },
+                "h3_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 10]
+                }
+            },
+            {
+                "_name": "4_layers",
+                "h1_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 10]
+                },
+                "h2_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 10]
+                },
+                "h3_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 10]
+                },
+                "h4_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 10]
+                }
+            },
+            {
+                "_name": "5_layers",
+                "h1_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 10]
+                },
+                "h2_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 10]
+                },
+                "h3_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 10]
+                },
+                "h4_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 10]
+                },
+                "h5_dim": {
+                    "_type": "quniform",
+                    "_value": [20, 500, 10]
+                }
+            }
+
+        ]
+    },
+    "class_weights":
+    {
+        "_type": "choice",
+        "_value":[1, 2, 3]
+    }
+}

@@ -1,0 +1,21 @@
+authorName: Itay_Levinas
+experimentName: fine_tuning_Clique_GCN
+trialConcurrency: 4   # max GPUs to use simultaneously.
+maxExecDuration: 72h
+maxTrialNum: 1000
+#choice: local, remote, pai
+trainingServicePlatform: local
+searchSpacePath: search_space_easy_case.json
+#choice: true, false
+useAnnotation: false
+tuner:
+  #choice: TPE, Random, Anneal, Evolution, BatchTuner, MetisTuner
+  #SMAC (SMAC should be installed through nnictl)
+  builtinTunerName: TPE
+  classArgs:
+    #choice: maximize, minimize
+    optimize_mode: maximize
+trial:
+  command: python nni_experiment.py -n 100 -cs 12
+  codeDir: .
+  gpuNum: 1

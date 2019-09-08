@@ -24,7 +24,7 @@ from graph_builder import GraphBuilder, MotifCalculator
 
 
 class StatsPlot:
-    def __init__(self, vertices, probability, clique_size, directed, key_name=None, pkl_path=None):
+    def __init__(self, vertices, probability, clique_size, directed, motif_choice=None, key_name=None, pkl_path=None):
         self._vertices = vertices
         self._probability = probability
         self._clique_size = clique_size
@@ -42,9 +42,9 @@ class StatsPlot:
             self._gnx = pickle.load(open(os.path.join(self._pkl_path, 'gnx.pkl'), 'rb'))
             self._labels = pickle.load(open(os.path.join(self._pkl_path, 'labels.pkl'), 'rb'))
         self._motif_matrix = None
-        self._motif_matrix_and_expected_vectors()
+        self._motif_matrix_and_expected_vectors(motif_choice)
 
-    def _motif_matrix_and_expected_vectors(self):
+    def _motif_matrix_and_expected_vectors(self, motif_choice):
         if os.path.exists(os.path.join(self._pkl_path, 'motif4.pkl')):
             motif3 = pickle.load(open(os.path.join(self._pkl_path, 'motif3.pkl'), 'rb'))
             self._motif3_matrix = self._to_matrix(motif3._features)
@@ -52,8 +52,11 @@ class StatsPlot:
             self._motif4_matrix = self._to_matrix(motif4._features)
             self._motif_matrix = np.hstack((self._motif3_matrix, self._motif4_matrix))
 
-        self._mp = MotifProbability(self._vertices, self._probability, self._clique_size, self._directed)
-        self._clique_motifs = self._mp.get_3_clique_motifs(3) + self._mp.get_3_clique_motifs(4)
+        if motif_choice is not None:
+            self._mp = MotifProbability(self._vertices, self._probability, self._clique_size, self._directed)
+            self._clique_motifs = self._mp.get_3_clique_motifs(3) + self._mp.get_3_clique_motifs(4)
+        else:
+            self._clique_motifs = motif_choice
 
     @staticmethod
     def _to_matrix(motif_features):
@@ -436,30 +439,28 @@ class StatsPlot:
         # Calculate values for every vertex, separated into [[non-clique vertices], [clique vertices]]:
         proj_cl = [[], []]
         proj_non_cl = [[], []]
-        proj_zscore_cl = [[], []]
-        proj_zscore_non_cl = [[], []]
-        means = np.mean(motif_matrix, axis=0)
-        stds = np.std(motif_matrix, axis=0)
-        zscored_expected_clique = np.divide((expected_clique - means), stds)
-        zscored_expected_non_clique = np.divide((expected_non_clique - means), stds)
+        proj_log_cl = [[], []]
+        proj_log_non_cl = [[], []]
+        log_expected_clique = np.log(expected_clique)
+        log_expected_non_clique = np.log(expected_non_clique)
         for v in range(self._vertices):
             index = self._labels[v]
             motif_vector = motif_matrix[v, :]
-            zscored_motif_vector = np.divide((motif_vector - means), stds)
+            log_motif_vector = np.log(motif_vector)
             proj_cl[index].append(
                 np.vdot(motif_vector, expected_clique) / np.linalg.norm(expected_clique))
             proj_non_cl[index].append(
                 np.vdot(motif_vector, expected_non_clique) / np.linalg.norm(expected_non_clique))
-            proj_zscore_cl[index].append(
-                np.vdot(zscored_motif_vector, zscored_expected_clique) / np.linalg.norm(zscored_expected_clique))
-            proj_zscore_non_cl[index].append(
-                np.vdot(zscored_motif_vector, zscored_expected_non_clique) / np.linalg.norm(zscored_expected_non_clique)
+            proj_log_cl[index].append(
+                np.vdot(log_motif_vector, log_expected_clique) / np.linalg.norm(log_expected_clique))
+            proj_log_non_cl[index].append(
+                np.vdot(log_motif_vector, log_expected_non_clique) / np.linalg.norm(log_expected_non_clique)
             )
 
         fig, ax = plt.subplots()
-        names = ["Projection on clique vec", "Projection on non-clique vec", "Projection on zscored clique vec",
-                 "Projection on zscored non-clique vec"]
-        for i, criterion in enumerate([proj_cl, proj_non_cl, proj_zscore_cl, proj_zscore_non_cl]):
+        names = ["Projection on clique vec", "Projection on non-clique vec", "Projection on log clique vec",
+                 "Projection on log non-clique vec"]
+        for i, criterion in enumerate([proj_cl, proj_non_cl, proj_log_cl, proj_log_non_cl]):
             mn = np.mean(criterion[0] + criterion[1])
             sd = np.std(criterion[0] + criterion[1])
             ax.plot([i + 0.9] * len(criterion[0]), np.divide(criterion[0] - mn, sd), 'ro',
@@ -844,7 +845,7 @@ class StatsPlot:
             non_clique_tnbr_sum = non_clique_tnbr_sum + [
                 bitsum[i] for i in range(self._vertices) if not self._labels[i]]
             clique_cc = clique_cc + [cc[i] for i in range(self._vertices) if self._labels[i]]
-            non_clique_cc = non_clique_cc +[cc[i] for i in range(self._vertices) if not self._labels[i]]
+            non_clique_cc = non_clique_cc + [cc[i] for i in range(self._vertices) if not self._labels[i]]
 
             for v in range(self._vertices):
                 motif_vector = motif_matrix[v, :]
@@ -940,22 +941,64 @@ class StatsPlot:
             for idea in range(len(aucs)):
                 w.writerow([ideas[idea], str(aucs[idea])])
 
+    def auc_avg_neighbor_degree(self):
+        # All the ideas
+        clique_degree = []
+        non_clique_degree = []
+
+        clique_avg_neighbor_degree = []
+        non_clique_avg_neighbor_degree = []
+
+        key_name = self._key_name + '_runs'
+        num_runs = len(os.listdir(os.path.join(os.path.join(os.getcwd(), 'graph_calculations', 'pkl', key_name))))
+        for run in range(num_runs):
+            pkl_path = os.path.join(os.getcwd(), 'graph_calculations', 'pkl', key_name,
+                                    self._key_name + '_run_%d' % run)
+            self._gnx = pickle.load(open(os.path.join(pkl_path, 'gnx.pkl'), 'rb'))
+            self._labels = pickle.load(open(os.path.join(pkl_path, 'labels.pkl'), 'rb'))
+
+            # Calculating
+            for v in range(self._vertices):
+                if self._labels[v]:
+                    clique_degree.append(self._gnx.degree(v))
+                    if self._directed:
+                        neighbors = set(self._gnx.successors(v)).union(set(self._gnx.predecessors(v)))
+                    else:
+                        neighbors = set(self._gnx.neighbors(v))
+                    clique_avg_neighbor_degree.append(np.mean([self._gnx.degree(n) for n in neighbors]))
+                else:
+                    non_clique_degree.append(self._gnx.degree(v))
+                    if self._directed:
+                        neighbors = set(self._gnx.successors(v)).union(set(self._gnx.predecessors(v)))
+                    else:
+                        neighbors = set(self._gnx.neighbors(v))
+                    non_clique_avg_neighbor_degree.append(np.mean([self._gnx.degree(n) for n in neighbors]))
+
+        with open(os.path.join(os.getcwd(), 'graph_calculations', 'auc_degree_ideas.csv'), 'w') as f:
+            w = csv.writer(f)
+            w.writerow(['Idea', 'AUC'])
+            w.writerow(['Degree', str(self.features_to_auc(clique_degree, non_clique_degree))])
+            w.writerow(['Avg. neighbor degree',
+                        str(self.features_to_auc(clique_avg_neighbor_degree, non_clique_avg_neighbor_degree))])
+
 
 if __name__ == "__main__":
-    size = 2000
-    # size = 500
-    pr = 0.5
+    # size = 2000
+    size = 500
     # pr = 0.5
-    cl = 20
-    # cl = 15
+    pr = 0.5
+    # cl = 20
+    cl = 15
     # sp = StatsPlot(size, pr, cl, True)
     # sp.sum_motifs()
     # mopro = MotifProbability(size, pr, cl, True)
-    # for runs in range(4):
-    #     k_name = 'n_' + str(size) + '_p_' + str(pr) + '_size_' + str(cl) + '_d_run_' + str(runs)
-    #     pkl_pth = os.path.join(os.getcwd(), 'graph_calculations', 'pkl',
-    #                            'n_' + str(size) + '_p_' + str(pr) + '_size_' + str(cl) + '_d_runs', k_name)
-    #     sp = StatsPlot(size, pr, cl, True, key_name=k_name, pkl_path=pkl_pth)
+    for runs in range(20):
+        dir_str = '_ud_'
+        k_name = 'n_' + str(size) + '_p_' + str(pr) + '_size_' + str(cl) + dir_str + 'run_' + str(runs)
+        pkl_pth = os.path.join(os.getcwd(), 'graph_calculations', 'pkl',
+                               'n_' + str(size) + '_p_' + str(pr) + '_size_' + str(cl) + dir_str + 'runs', k_name)
+        sp = StatsPlot(size, pr, cl, False, key_name=k_name, pkl_path=pkl_pth, motif_choice=[0, 1])
+        sp.comparison_criteria()
         # sp.sum_motifs()
         # sp.big_sum_most_common()
         # sp.sum_most_common_hist()
@@ -965,6 +1008,7 @@ if __name__ == "__main__":
         # sp.motif_stats([m3 for m3 in range(13)])
         # sp.motif_scatter_updated_vec()
     sp = StatsPlot(size, pr, cl, True)
-    sp.auc_all_used_measures()
+    # sp.auc_all_used_measures()
+    sp.auc_avg_neighbor_degree()
     # sp.motif_scatter_updated_vec()
     # sp.motif_stats([m4 for m4 in range(16, 211, 4)])

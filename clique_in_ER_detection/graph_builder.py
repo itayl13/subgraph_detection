@@ -5,8 +5,9 @@ import os
 import pickle
 import datetime
 import sys
+sys.path.append(os.path.abspath('.'))
 sys.path.append(os.path.abspath('graph_calculations/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures'))
+sys.path.append(os.path.abspath('graph_calculations/graph_measures/'))
 sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms'))
 sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra'))
 from features_infra.feature_calculators import FeatureMeta

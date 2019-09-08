@@ -1,0 +1,23 @@
+
+{
+    "hidden_0": {"_type":"quniform", "_value":[20, 1000, 10]},
+    "hidden_1": {"_type":"quniform", "_value":[20, 1000, 10]},
+
+    "dropout_0": {"_type":"quniform", "_value":[0, 0.5, 0.005]},
+    "dropout_1": {"_type":"quniform", "_value":[0, 0.5, 0.005]},
+
+    "regularizer_0": {"_type":"choice", "_value":["L1", "L2"]},
+    "regularizer_1": {"_type":"choice", "_value":["L1", "L2"]},
+    "regularizer_2": {"_type":"choice", "_value":["L1", "L2"]},
+
+    "reg_term_0":{"_type":"quniform", "_value":[0, 2, 1e-6]},
+    "reg_term_1":{"_type":"quniform", "_value":[0, 2, 1e-6]},
+    "reg_term_2":{"_type":"quniform", "_value":[0, 2, 1e-6]},
+
+    "learning_rate":{"_type":"quniform", "_value":[1e-6, 1, 1e-6]},
+    "epochs":{"_type":"quniform", "_value":[20, 2000, 10]},
+
+    "class_weights": {"_type":"choice", "_value":["1/class", "1/class^2"]},
+
+    "batch_rate": {"_type": "choice", "_value": [0.1, 0.33333, 1]}
+}

@@ -4,12 +4,6 @@ import itertools
 import os
 import pickle
 import datetime
-import sys
-sys.path.append(os.path.abspath('graph_calculations/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra'))
-# sys.path.remove(os.path.abspath(''))
 from features_infra.feature_calculators import FeatureMeta
 from features_algorithms.accelerated_graph_features.motifs import nth_nodes_motif, MotifsNodeCalculator
 # from features_algorithms.vertices.motifs import nth_nodes_motif, MotifsNodeCalculator
@@ -79,7 +73,7 @@ class GraphBuilder:
         self._label_graph()
 
     def _build_er_and_clique(self):
-        if self._params['load_graph'] or os.path.exists(os.path.join(self._dir_path, 'motif4.pkl')):
+        if self._params['load_graph'] or os.path.exists(os.path.join(self._dir_path, 'gnx.pkl')):
             self._gnx = pickle.load(open(os.path.join(self._dir_path, 'gnx.pkl'), 'rb'))
         else:
             if not os.path.exists(self._dir_path):
@@ -91,7 +85,7 @@ class GraphBuilder:
             pickle.dump(self._gnx, open(os.path.join(self._dir_path, 'gnx.pkl'), "wb"))
 
     def _label_graph(self):
-        if self._params['load_labels'] or os.path.exists(os.path.join(self._dir_path, 'motif4.pkl')):
+        if self._params['load_labels'] or os.path.exists(os.path.join(self._dir_path, 'labels.pkl')):
             self._labels = pickle.load(open(os.path.join(self._dir_path, 'labels.pkl'), "rb"))
         else:
             labels = []
@@ -116,48 +110,95 @@ class MotifCalculator:
         self._params = params
         self._graph = graph
         self._dir_path = dir_path
-        self._clique_motifs = []
+        self._mp = MotifProbability(self._params["vertices"], self._params["probability"], self._params["clique_size"],
+                                    self._params["directed"])
         self._motif_mat = None
         self._motif_features = {
             "motif3": FeatureMeta(nth_nodes_motif(3, gpu=gpu, device=device), {"m3"}),
             "motif4": FeatureMeta(nth_nodes_motif(4, gpu=gpu, device=device), {"m4"})
         }
-        self._calculate_expected_values()
-        self._calculate_motif_matrix()
 
-    def _calculate_expected_values(self):
-        mp = MotifProbability(self._params["vertices"], self._params["probability"], self._params["clique_size"],
-                              self._params["directed"])
-        self._clique_motifs = mp.get_3_clique_motifs(3) + mp.get_3_clique_motifs(4)
-        self._expected_non_clique = [mp.motif_expected_non_clique_vertex(motif) for motif in self._clique_motifs]
-        self._expected_clique = [mp.motif_expected_clique_vertex(motif) for motif in self._clique_motifs]
-        pickle.dump(self._expected_non_clique, open(os.path.join(self._dir_path, 'expected_non_clique.pkl'), 'wb'))
-        pickle.dump(self._expected_clique, open(os.path.join(self._dir_path, 'expected_clique.pkl'), 'wb'))
+    def build_all(self, motifs_picked=None):
+        self._calculate_expected_values(motifs_picked)
+        self._calculate_motif_matrix(motifs_picked)
 
-    def _calculate_motif_matrix(self):
+    def _calculate_expected_values(self, motifs_picked):
+
+        self._clique_motifs = self._mp.get_3_clique_motifs(3) + self._mp.get_3_clique_motifs(4) \
+            if motifs_picked is not None else motifs_picked
+        self._expected_non_clique = [self._mp.motif_expected_non_clique_vertex(motif)
+                                     for motif in self._clique_motifs]
+        self._expected_clique = [self._mp.motif_expected_clique_vertex(motif)
+                                 for motif in self._clique_motifs]
+
+    def _calculate_motif_matrix(self, motifs_picked):
+        if motifs_picked is not None:
+            if max(motifs_picked) >= self._mp.get_3_clique_motifs(3)[0] + 1:
+                self._execute_for_4(motifs_picked)
+            else:
+                self._execute_for_3(motifs_picked)
+        else:
+            self._execute_for_3(motifs_picked)
+
+    def _execute_for_4(self, motifs_picked):
         if self._params["load_motifs"] or os.path.exists(os.path.join(self._dir_path, 'motif4.pkl')):
             pkl3 = pickle.load(open(os.path.join(self._dir_path, "motif3.pkl"), "rb"))
             pkl4 = pickle.load(open(os.path.join(self._dir_path, "motif4.pkl"), "rb"))
             if type(pkl3) == dict:
                 motif3 = self._to_matrix(pkl3)
             elif type(pkl3) == MotifsNodeCalculator:
-                motif3 = np.array(pkl3._features)
+                m3 = pkl3._features
+                if type(m3) == dict:
+                    motif3 = self._to_matrix_(m3)
+                else:
+                    motif3 = np.array(m3)
             else:
                 motif3 = np.array(pkl3)
             if type(pkl4) == dict:
                 motif4 = self._to_matrix(pkl4)
             elif type(pkl4) == MotifsNodeCalculator:
-                motif4 = np.array(pkl4._features)
+                m4 = pkl4._features
+                if type(m4) == dict:
+                    motif4 = self._to_matrix_(m4)
+                else:
+                    motif4 = np.array(m4)
             else:
                 motif4 = np.array(pkl4)
             self._motif_mat = np.hstack((motif3, motif4))
+            if motifs_picked is not None:
+                self._motif_mat = self._motif_mat[:, motifs_picked]
             print(str(datetime.datetime.now()) + " , Calculated motifs")
             return
         g_ftrs = GraphFeatures(self._graph, self._motif_features, dir_path=self._dir_path)
         g_ftrs.build(should_dump=True)
         print(str(datetime.datetime.now()) + " , Calculated motifs")
-        # self._motif_mat = np.asarray(g_ftrs['motif3']._features)
         self._motif_mat = np.hstack((np.asarray(g_ftrs['motif3']._features), np.asarray(g_ftrs['motif4']._features)))
+        if motifs_picked is not None:
+                self._motif_mat = self._motif_mat[:, motifs_picked]
+
+    def _execute_for_3(self, motifs_picked):
+        if self._params["load_motifs"] or os.path.exists(os.path.join(self._dir_path, 'motif3.pkl')):
+            pkl3 = pickle.load(open(os.path.join(self._dir_path, "motif3.pkl"), "rb"))
+            if type(pkl3) == dict:
+                motif3 = self._to_matrix(pkl3)
+            elif type(pkl3) == MotifsNodeCalculator:
+                m3 = pkl3._features
+                if type(m3) == dict:
+                    motif3 = self._to_matrix_(m3)
+                else:
+                    motif3 = np.array(m3)
+            else:
+                motif3 = np.array(pkl3)
+            self._motif_mat = motif3
+            self._motif_mat = self._motif_mat[:, motifs_picked]
+            print(str(datetime.datetime.now()) + " , Calculated motifs")
+            return
+        motif_featutes = {"motif3": self._motif_features["motif3"]}
+        g_ftrs = GraphFeatures(self._graph, motif_featutes, dir_path=self._dir_path)
+        g_ftrs.build(should_dump=True)
+        print(str(datetime.datetime.now()) + " , Calculated motifs")
+        self._motif_mat = np.asarray(g_ftrs['motif3']._features)
+        self._motif_mat = self._motif_mat[:, motifs_picked]
 
     @staticmethod
     def _to_matrix(motif_features):
@@ -169,11 +210,22 @@ class MotifCalculator:
                 final_mat[i, j] = motif_features[i][j]
         return final_mat
 
+    @staticmethod
+    def _to_matrix_(motif_features):
+        rows = len(motif_features.keys())
+        columns = len(motif_features[0])
+        final_mat = np.zeros((rows, columns))
+        for i in range(rows):
+            for j in range(columns):
+                final_mat[i, j] = motif_features[i][j]
+        return final_mat
+
     def clique_motifs(self):
         return self._clique_motifs
 
-    def motif_matrix(self, motif_picking=None):
-        if not motif_picking:
-            return self._motif_mat
-        else:
-            return self._motif_mat[:, motif_picking]
+    def motif_matrix(self):
+        return self._motif_mat
+
+    @property
+    def mp(self):
+        return self._mp
