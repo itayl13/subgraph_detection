@@ -3,43 +3,41 @@ import sys
 import numpy as np
 import pickle
 from itertools import product
-import csv
 from graph_for_gcn_builder import GraphBuilder, FeatureCalculator
 from gcn import main_gcn, gcn_for_performance_test
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import roc_auc_score
 from torch.optim import Adam, SGD
 import torch
 
 if torch.version.cuda.split('.')[0] == '10':
     sys.path.append(os.path.abspath('.'))
-    sys.path.append(os.path.abspath('graph_calculations/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_algorithms/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_algorithms/accelerated_graph_features/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_algorithms/vertices/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_infra/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/graph_infra/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_processor/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_infra/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_meta/'))
+    sys.path.append(os.path.abspath('../graph_calculations/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_algorithms/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_algorithms/accelerated_graph_features/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_algorithms/vertices/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_infra/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/graph_infra/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_processor/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_infra/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_meta/'))
 
 else:
     sys.path.append(os.path.abspath('.'))
-    sys.path.append(os.path.abspath('graph_calculations/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/vertices/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/graph_infra/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_processor/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_meta/'))
+    sys.path.append(os.path.abspath('../graph_calculations/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/vertices/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/graph_infra/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_processor/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_meta/'))
 
 
 class GCNCliqueDetector:
-    def __init__(self, v, p, cs, d, features, norm_adj, new_runs=0, nni=False):
+    def __init__(self, v, p, cs, d, features, new_runs=0, nni=False):
         self._params = {
             'vertices': v,
             'probability': p,
@@ -54,8 +52,8 @@ class GCNCliqueDetector:
         self._key_name = 'n_' + str(self._params["vertices"]) + '_p_' + str(
             self._params["probability"]) + '_size_' + str(
             self._params["clique_size"]) + ('_d' if self._params["directed"] else '_ud')
-        self._head_path = os.path.join(os.path.dirname(__file__), 'graph_calculations', 'pkl', self._key_name + '_runs')
-        self._norm_adj = norm_adj
+        self._head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl',
+                                       self._key_name + '_runs')
         self._load_data()
         self._nni = nni
 
@@ -81,11 +79,7 @@ class GCNCliqueDetector:
             fc = FeatureCalculator(self._params, gnx, dir_path, self._params['features'], gpu=True, device=run % 3)
             feature_matrix = fc.feature_matrix
             adjacency_matrix = fc.adjacency_matrix
-            if self._norm_adj:
-                normed_adj_matrix = self._normalize(adjacency_matrix)
-                self._adjacency_matrices.append(normed_adj_matrix)
-            else:
-                self._adjacency_matrices.append(adjacency_matrix)
+            self._adjacency_matrices.append(adjacency_matrix)
             self._feature_matrices.append(feature_matrix)
             if type(labels) == dict:
                 new_labels = [[y for x, y in labels.items()]]
@@ -118,12 +112,10 @@ class GCNCliqueDetector:
                          epochs=30, dropout=0.02, lr=0.044949,  l2_pen=0.216205,
                          iterations=2, dumping_name=self._key_name,
                          optimizer=Adam,
-                         class_weights={0: (float(self._params['vertices']) / (
-                                     self._params['vertices'] - self._params['clique_size'])) ** 2,
-                                        1: (float(self._params['vertices']) / self._params['clique_size']) ** 2
-                                        },
-                         graph_params=self._params, double=True if self._norm_adj else False,
+                         rerun=True,
+                         graph_params=self._params,
                          is_nni=self._nni)
+
         else:
             _ = main_gcn(feature_matrices=self._feature_matrices, adj_matrices=self._adjacency_matrices, labels=self._labels,
                          hidden_layers=input_params["hidden_layers"],
@@ -131,13 +123,13 @@ class GCNCliqueDetector:
                          lr=input_params["lr"], l2_pen=input_params["regularization"],
                          iterations=2, dumping_name=self._key_name,
                          optimizer=input_params["optimizer"],
-                         class_weights=input_params["class_weights"],
-                         graph_params=self._params, double=True if self._norm_adj else False,
+                         rerun=input_params["rerun"],
+                         graph_params=self._params,
                          is_nni=self._nni)
         return None
 
     def single_implementation(self, input_params, check='split'):
-        all_test_ranks, all_test_labels, all_train_ranks, all_train_labels = gcn_for_performance_test(
+        all_test_ranks, all_test_labels, all_train_ranks, all_train_labels, all_train_losses, all_test_losses = gcn_for_performance_test(
             feature_matrices=self._feature_matrices,
             adj_matrices=self._adjacency_matrices,
             labels=self._labels,
@@ -148,11 +140,10 @@ class GCNCliqueDetector:
             l2_pen=input_params["regularization"],
             iterations=5, dumping_name=self._key_name,
             optimizer=input_params["optimizer"],
-            class_weights=input_params["class_weights"],
+            rerun=input_params["rerun"],
             graph_params=self._params,
-            double=True if self._norm_adj else False,
             check=check)
-        return all_test_ranks, all_test_labels, all_train_ranks, all_train_labels
+        return all_test_ranks, all_test_labels, all_train_ranks, all_train_labels, all_train_losses, all_test_losses
 
     def all_labels_to_pkl(self):
         pickle.dump(self._labels, open(os.path.join(self._head_path, 'all_labels.pkl'), 'wb'))
@@ -160,27 +151,6 @@ class GCNCliqueDetector:
     @property
     def labels(self):
         return self._labels
-
-    @staticmethod
-    def _normalize(adj_matrix):
-        mx_t = adj_matrix.transpose()
-
-        mx = adj_matrix + np.eye(adj_matrix.shape[0])
-        # mx = adj_matrix
-        rowsum = np.array(mx.sum(1))
-        rowsum = np.power(rowsum, -0.5, where=[rowsum != 0])
-        r_inv = rowsum.flatten()
-        r_mat_inv = np.diag(r_inv)
-        mx = r_mat_inv.dot(mx).dot(r_mat_inv)  # D^-0.5 * (X + I) * D^-0.5
-
-        mx_t += np.eye(mx_t.shape[0], dtype='int32')
-        mx_t = mx_t.astype('float64')
-        rowsum_t = np.array(mx_t.sum(1))
-        rowsum_t[rowsum_t != 0] **= -0.5
-        r_inv_t = rowsum_t.flatten()
-        r_mat_inv_t = np.diag(r_inv_t)
-        mx_t = r_mat_inv_t.dot(mx).dot(r_mat_inv_t)  # D^-0.5 * (X^T + I) * D^-0.5
-        return np.vstack([mx, mx_t])
 
 
 if __name__ == "__main__":
@@ -194,5 +164,6 @@ if __name__ == "__main__":
     # gcn_detector = GCNCliqueDetector(500, 0.5, 15, False,
     #                                  features=['Degree', 'Betweenness', 'BFS'], new_runs=0, norm_adj=True)
     # gcn_detector.train()
-    gg = GCNCliqueDetector(2000, 0.5, 22, False, features=['Motif_3', 'additional_features'], norm_adj=False)
+    gg = GCNCliqueDetector(2000, 0.5, 22, False, features=['Motif_3', 'additional_features'])
+    gg.train()
     t = 0

@@ -13,12 +13,12 @@ import sys
 if not os.path.abspath(os.path.join(os.path.dirname(__file__),
                                     'graph_calculations/graph_measures/features_infra/')) in sys.path:
     sys.path.append(os.path.dirname(__file__))
-    sys.path.append(os.path.abspath('graph_calculations'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/graph_infra/'))
+    sys.path.append(os.path.abspath('../graph_calculations'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
+    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/graph_infra/'))
 try:
     from clique_in_ER_learning.graph_builder import GraphBuilder, MotifCalculator
     from clique_in_ER_learning.extra_features import ExtraFeatures

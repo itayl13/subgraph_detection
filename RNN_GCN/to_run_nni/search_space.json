@@ -1,0 +1,43 @@
+{
+  "input_vec": {
+    "_type": "choice",
+    "_value": [
+      [ "Degree" ],
+      [ "In-Degree", "Out-Degree" ],
+      [ "Degree", "In-Degree", "Out-Degree" ],
+      [ "Degree", "In-Degree", "Out-Degree", "Betweenness", "BFS" ],
+      [ "Motif_3" ],
+      [ "Degree", "Motif_3" ],
+      [ "In-Degree", "Out-Degree", "Motif_3" ],
+      [ "Degree", "In-Degree", "Out-Degree", "Motif_3" ],
+      [ "Motif_3", "additional_features" ],
+      [ "In-Degree", "Out-Degree", "Motif_3", "additional_features" ],
+      [ "Degree", "In-Degree", "Out-Degree", "Betweenness", "BFS", "Motif_3", "additional_features" ]
+    ]
+  },
+  "optimizer": {
+    "_type": "choice",
+    "_value": [ "ADAM", "SGD" ]
+  },
+
+  "learning_rate": {
+    "_type": "uniform",
+    "_value": [ 1e-6, 0.1 ]
+  },
+  "regularization": {
+    "_type": "uniform",
+    "_value": [ 0, 0.5 ]
+  },
+  "epochs": {
+    "_type": "choice",
+    "_value": [ 50, 100, 200, 400 ]
+  },
+  "recurrent_cycles": {
+    "_type": "quniform",
+    "_value": [ 0, 200, 5 ]
+  },
+  "class_weights": {
+    "_type": "choice",
+    "_value": [ 1, 2 ]
+  }
+}

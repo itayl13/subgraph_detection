@@ -5,11 +5,11 @@ import sys
 import datetime
 import networkx as nx
 sys.path.append(os.path.abspath('.'))
-sys.path.append(os.path.abspath('graph_calculations/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
+sys.path.append(os.path.abspath('../graph_calculations/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
 from feature_calculators import FeatureMeta
 from graph_features import GraphFeatures
 from motifs import nth_nodes_motif, MotifsNodeCalculator

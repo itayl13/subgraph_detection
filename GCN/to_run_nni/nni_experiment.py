@@ -5,16 +5,16 @@ import os
 import argparse
 import sys
 sys.path.append(os.path.abspath('../'))
-sys.path.append(os.path.abspath('../graph_calculations/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/vertices/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/graph_infra/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_processor/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_meta/'))
+sys.path.append(os.path.abspath('../../graph_calculations/'))
+sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/'))
+sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_algorithms/'))
+sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
+sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_algorithms/vertices/'))
+sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_infra/'))
+sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/graph_infra/'))
+sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_processor/'))
+sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_infra/'))
+sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_meta/'))
 
 from GCN_clique_detector import GCNCliqueDetector
 
@@ -25,28 +25,25 @@ def run_trial(params, v, p, cs, d):
     features = params["input_vec"]
 
     # model
-    hidden_layers = []
-    layer_count = int(params["layers_config"]["_name"].split("_")[0])
-    for hidden_layer in range(layer_count):
-        hidden_layers.append(params["layers_config"]["h" + str(hidden_layer + 1) + "_dim"])
+    hidden_layers = [params["h1_dim"], params["h2_dim"], params["h3_dim"], params["h4_dim"]]
+    # layer_count = int(params["layers_config"]["_name"].split("_")[0])
+    # for hidden_layer in range(layer_count):
+    #     hidden_layers.append(params["layers_config"]["h" + str(hidden_layer + 1) + "_dim"])
     dropout = params["dropout"]
     reg_term = params["regularization"]
     lr = params["learning_rate"]
     optimizer = Adam
     epochs = int(params["epochs"])
-    class_weights = {0: (float(v) / (v - cs)) ** params["class_weights"],
-                     1: (float(v) / cs) ** params["class_weights"]}
-
     input_params = {
         "hidden_layers": hidden_layers,
         "epochs": epochs,
         "dropout": dropout,
         "lr": lr,
         "regularization": reg_term,
-        "class_weights": class_weights,
+        "rerun": True,
         "optimizer": optimizer
     }
-    model = GCNCliqueDetector(v, p, cs, d, features=features, norm_adj=True, nni=True)
+    model = GCNCliqueDetector(v, p, cs, d, features=features, nni=True)
     model.train(input_params)
 
 

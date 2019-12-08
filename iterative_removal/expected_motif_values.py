@@ -18,7 +18,7 @@ class MotifProbability:
 
     def _build_variations(self):
         name3 = "3_%sdirected.pkl" % ("" if self._is_directed else "un")
-        variations_path = os.path.join(os.path.dirname(__file__), 'graph_calculations',
+        variations_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations',
                                        'graph_measures', 'features_algorithms',
                                        'motif_variations')
         path3 = os.path.join(variations_path, name3)

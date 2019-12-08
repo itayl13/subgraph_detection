@@ -1,8 +1,8 @@
 authorName: Itay_Levinas
 experimentName: fine_tuning_Clique_GCN
-trialConcurrency: 4   # max GPUs to use simultaneously.
-maxExecDuration: 72h
-maxTrialNum: 500
+trialConcurrency: 2   # max GPUs to use simultaneously.
+maxExecDuration: 6d
+maxTrialNum: 10000
 #choice: local, remote, pai
 trainingServicePlatform: local
 searchSpacePath: search_space.json
@@ -16,6 +16,6 @@ tuner:
     #choice: maximize, minimize
     optimize_mode: maximize
 trial:
-  command: python nni_experiment.py
+  command: python nni_experiment.py -n 2000 -cs 40
   codeDir: .
-  gpuNum: 4
+  gpuNum: 1

@@ -12,14 +12,14 @@ import csv
 
 sys.path.append(os.path.abspath('.'))
 sys.path.append(os.path.abspath('..'))
-sys.path.append(os.path.abspath('graph_calculations'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/accelerated_graph_features'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/graph_infra'))
+sys.path.append(os.path.abspath('../graph_calculations'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/graph_infra'))
 
-from motif_probability import MotifProbability
+from motif_probability_files.motif_probability import MotifProbability
 from graph_builder import GraphBuilder, MotifCalculator
 
 
@@ -35,12 +35,14 @@ class StatsPlot:
         else:
             self._key_name = key_name
         if pkl_path is None:
-            self._pkl_path = os.path.join(os.getcwd(), 'graph_calculations', 'pkl', self._key_name)
+            self._pkl_path = os.path.join(os.getcwd(), '..', 'graph_calculations', 'pkl', self._key_name)
         else:
             self._pkl_path = pkl_path
         if os.path.exists(os.path.join(self._pkl_path, 'motif4.pkl')):
             self._gnx = pickle.load(open(os.path.join(self._pkl_path, 'gnx.pkl'), 'rb'))
             self._labels = pickle.load(open(os.path.join(self._pkl_path, 'labels.pkl'), 'rb'))
+            if type(self._labels) == list:
+                self._labels = {v: self._labels[v] for v in range(len(self._labels))}
         self._motif_matrix = None
         self._motif_matrix_and_expected_vectors(motif_choice)
 
@@ -177,7 +179,7 @@ class StatsPlot:
         plt.savefig(os.path.join(os.getcwd(), 'graph_plots', self._key_name + '_p_motif_given_i.png'))
 
     def multiple_runs(self, num_runs, motifs):
-        pkl_path = os.path.join(os.getcwd(), 'graph_calculations', 'pkl')
+        pkl_path = os.path.join(os.getcwd(), '..', 'graph_calculations', 'pkl')
         run_dir = os.path.join(pkl_path, self._key_name + '_runs')
         if not os.path.exists(run_dir):
             os.mkdir(run_dir)
@@ -234,7 +236,7 @@ class StatsPlot:
         for (s, p, c, d) in graphs_properties:
             mp = MotifProbability(s, p, c, d)
             key_name = 'n_' + str(s) + '_p_' + str(p) + '_size_' + str(c) + ('_d' if d else '_ud')
-            pkl_path = os.path.join(os.getcwd(), 'graph_calculations', 'pkl', key_name)
+            pkl_path = os.path.join(os.getcwd(), '..', 'graph_calculations', 'pkl', key_name)
             if os.path.exists(os.path.join(pkl_path, 'motif4.pkl')):
                 motif3 = pickle.load(open(os.path.join(pkl_path, 'motif3.pkl'), 'rb'))
                 motif4 = pickle.load(open(os.path.join(pkl_path, 'motif4.pkl'), 'rb'))
@@ -335,8 +337,7 @@ class StatsPlot:
             proj_zscore_cl[index].append(
                 np.vdot(zscored_motif_vector, zscored_expected_clique) / np.linalg.norm(zscored_expected_clique))
             proj_zscore_non_cl[index].append(
-                np.vdot(zscored_motif_vector, zscored_expected_non_clique) / np.linalg.norm(
-                    zscored_expected_non_clique))
+                np.vdot(zscored_motif_vector, zscored_expected_non_clique) / np.linalg.norm(zscored_expected_non_clique))
             dist_zscore_cl[index].append(np.linalg.norm(zscored_motif_vector - zscored_expected_clique))
             dist_zscore_non_cl[index].append(np.linalg.norm(zscored_motif_vector - zscored_expected_non_clique))
 
@@ -805,9 +806,9 @@ class StatsPlot:
         non_clique_tcc = []
 
         key_name = self._key_name + '_runs'
-        num_runs = len(os.listdir(os.path.join(os.path.join(os.getcwd(), 'graph_calculations', 'pkl', key_name))))
+        num_runs = len(os.listdir(os.path.join(os.path.join(os.getcwd(), '..', 'graph_calculations', 'pkl', key_name))))
         for run in range(num_runs):
-            pkl_path = os.path.join(os.getcwd(), 'graph_calculations', 'pkl', key_name,
+            pkl_path = os.path.join(os.getcwd(), '..', 'graph_calculations', 'pkl', key_name,
                                     self._key_name + '_run_%d' % run)
             self._gnx = pickle.load(open(os.path.join(pkl_path, 'gnx.pkl'), 'rb'))
             self._labels = pickle.load(open(os.path.join(pkl_path, 'labels.pkl'), 'rb'))
@@ -916,7 +917,7 @@ class StatsPlot:
                  16: '<Clustering Coeff.> over top |clique| neighbors'
                  }
 
-        with open(os.path.join(os.getcwd(), 'graph_calculations', 'auc_ideas.csv'), 'w') as f:
+        with open(os.path.join(os.getcwd(), 'auc_ideas_results', 'auc_ideas.csv'), 'w') as f:
             w = csv.writer(f)
             w.writerow(['Idea', 'AUC'])
             aucs = [
@@ -950,9 +951,9 @@ class StatsPlot:
         non_clique_avg_neighbor_degree = []
 
         key_name = self._key_name + '_runs'
-        num_runs = len(os.listdir(os.path.join(os.path.join(os.getcwd(), 'graph_calculations', 'pkl', key_name))))
+        num_runs = len(os.listdir(os.path.join(os.path.join(os.getcwd(), '..', 'graph_calculations', 'pkl', key_name))))
         for run in range(num_runs):
-            pkl_path = os.path.join(os.getcwd(), 'graph_calculations', 'pkl', key_name,
+            pkl_path = os.path.join(os.getcwd(), '..', 'graph_calculations', 'pkl', key_name,
                                     self._key_name + '_run_%d' % run)
             self._gnx = pickle.load(open(os.path.join(pkl_path, 'gnx.pkl'), 'rb'))
             self._labels = pickle.load(open(os.path.join(pkl_path, 'labels.pkl'), 'rb'))
@@ -974,7 +975,7 @@ class StatsPlot:
                         neighbors = set(self._gnx.neighbors(v))
                     non_clique_avg_neighbor_degree.append(np.mean([self._gnx.degree(n) for n in neighbors]))
 
-        with open(os.path.join(os.getcwd(), 'graph_calculations', 'auc_degree_ideas.csv'), 'w') as f:
+        with open(os.path.join(os.getcwd(), 'auc_ideas_results', 'auc_degree_ideas.csv'), 'w') as f:
             w = csv.writer(f)
             w.writerow(['Idea', 'AUC'])
             w.writerow(['Degree', str(self.features_to_auc(clique_degree, non_clique_degree))])
@@ -984,31 +985,31 @@ class StatsPlot:
 
 if __name__ == "__main__":
     # size = 2000
-    size = 500
+    size = 1000
     # pr = 0.5
     pr = 0.5
     # cl = 20
-    cl = 15
+    cl = 0
     # sp = StatsPlot(size, pr, cl, True)
     # sp.sum_motifs()
     # mopro = MotifProbability(size, pr, cl, True)
-    for runs in range(20):
+    for runs in range(4):
         dir_str = '_ud_'
         k_name = 'n_' + str(size) + '_p_' + str(pr) + '_size_' + str(cl) + dir_str + 'run_' + str(runs)
-        pkl_pth = os.path.join(os.getcwd(), 'graph_calculations', 'pkl',
+        pkl_pth = os.path.join(os.getcwd(), '..', 'graph_calculations', 'pkl',
                                'n_' + str(size) + '_p_' + str(pr) + '_size_' + str(cl) + dir_str + 'runs', k_name)
         sp = StatsPlot(size, pr, cl, False, key_name=k_name, pkl_path=pkl_pth, motif_choice=[0, 1])
-        sp.comparison_criteria()
+        # sp.comparison_criteria()
         # sp.sum_motifs()
         # sp.big_sum_most_common()
         # sp.sum_most_common_hist()
         # sp.neighbor_cluster_coeff()
 
         # sp.feature_vs_degree()
-        # sp.motif_stats([m3 for m3 in range(13)])
+        sp.motif_stats([m3 for m3 in range(6)])
         # sp.motif_scatter_updated_vec()
-    sp = StatsPlot(size, pr, cl, True)
+    # sp = StatsPlot(size, pr, cl, True)
     # sp.auc_all_used_measures()
-    sp.auc_avg_neighbor_degree()
+    # sp.auc_avg_neighbor_degree()
     # sp.motif_scatter_updated_vec()
     # sp.motif_stats([m4 for m4 in range(16, 211, 4)])

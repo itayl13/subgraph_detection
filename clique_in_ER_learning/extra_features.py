@@ -1,9 +1,8 @@
 import os
 import numpy as np
-import pickle
 from operator import itemgetter
 from clique_in_ER_learning.graph_builder import GraphBuilder
-from clique_in_ER_learning.graph_calculations.motif_probability_ import MotifProbability
+from motif_probability_ import MotifProbability
 from sklearn.linear_model import LinearRegression
 
 

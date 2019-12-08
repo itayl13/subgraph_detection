@@ -8,30 +8,28 @@ import pickle
 import sys
 import torch
 
-if torch.version.cuda.split('.')[0] == '10':
-    sys.path.append(os.path.abspath('.'))
-    sys.path.append(os.path.abspath('graph_calculations/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_algorithms/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_algorithms/accelerated_graph_features/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_algorithms/vertices/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_infra/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/graph_infra/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_processor/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_infra/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures_cuda10/features_meta/'))
-else:
-    sys.path.append(os.path.abspath('.'))
-    sys.path.append(os.path.abspath('graph_calculations/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/vertices/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/graph_infra/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_processor/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
-    sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_meta/'))
+# sys.path.append(os.path.abspath('.'))
+# sys.path.append(os.path.abspath('../graph_calculations/'))
+# sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/'))
+# sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_algorithms/'))
+# sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_algorithms/accelerated_graph_features/'))
+# sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_algorithms/vertices/'))
+# sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_infra/'))
+# sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/graph_infra/'))
+# sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_processor/'))
+# sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_infra/'))
+# sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_meta/'))
+sys.path.append(os.path.abspath('.'))
+sys.path.append(os.path.abspath('../graph_calculations/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/vertices/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/graph_infra/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_processor/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_meta/'))
 from betweenness_centrality import BetweennessCentralityCalculator
 from vertices.bfs_moments import BfsMomentsCalculator
 from feature_calculators import FeatureMeta
@@ -133,7 +131,7 @@ class GraphBuilder:
 
 
 class FeatureCalculator:
-    def __init__(self, params, graph, dir_path, features, gpu=False,  device=2):
+    def __init__(self, params, graph, dir_path, features, gpu=False,  device=2, report=False):
         self._params = params
         self._graph = graph
         self._dir_path = dir_path
@@ -150,6 +148,7 @@ class FeatureCalculator:
         }
         self._gpu = gpu
         self._device = device
+        self._report = report
         if "Motif_3" in features and "Motif_4" in features:
             self._motif_choice = "All_Motifs"
         elif "Motif_3" in features and "Motif_4" not in features:
@@ -170,7 +169,7 @@ class FeatureCalculator:
         self._adj_matrix = nx.adjacency_matrix(pickle.load(open(os.path.join(self._dir_path, 'gnx.pkl'), 'rb')))
         self._adj_matrix = self._adj_matrix.toarray()
         for feat_str in self._features:
-            if os.path.exists(os.path.join(self._dir_path, feat_str + '.pkl')):
+            if os.path.exists(os.path.join(self._dir_path, feat_str + '.pkl')) and feat_str != "additional_features":
                 feat = pickle.load(open(os.path.join(self._dir_path, feat_str + ".pkl"), "rb"))
                 self._feature_matrix = np.hstack((self._feature_matrix, feat))
             else:
@@ -351,7 +350,7 @@ def feature_calculation(v, p, cs, d, features, new_runs):
                   'load_labels': False,
                   'load_motifs': False}
     key_name = 'n_' + str(v) + '_p_' + str(p) + '_size_' + str(cs) + ('_d' if d else '_ud')
-    head_path = os.path.join(os.path.dirname(__file__), 'graph_calculations', 'pkl', key_name + '_runs')
+    head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', key_name + '_runs')
     if not os.path.exists(head_path):
         os.mkdir(head_path)
         print("Made new directory")
@@ -362,25 +361,25 @@ def feature_calculation(v, p, cs, d, features, new_runs):
         raise ValueError('No runs here!')
 
     for run in range(len(graph_ids) + new_runs):
-            dir_path = os.path.join(head_path, key_name + "_run_" + str(run))
-            data = GraphBuilder(param_dict, dir_path)
-            gnx = data.graph()
-            _ = FeatureCalculator(param_dict, gnx, dir_path, param_dict['features'], gpu=True, device=2)
+        dir_path = os.path.join(head_path, key_name + "_run_" + str(run))
+        data = GraphBuilder(param_dict, dir_path)
+        gnx = data.graph()
+        _ = FeatureCalculator(param_dict, gnx, dir_path, param_dict['features'], gpu=True, device=2)
 
 
 if __name__ == "__main__":
-    # for sz, cl_sz in itertools.product([2000], range(42, 45)):
-    #     vert = sz
-    #     prob = 0.5
-    #     dire = False
-    #     cl_s = cl_sz
-    #     ftrs = ['Betweenness', 'BFS']
-    #     new_run_count = 0
-    #     feature_calculation(vert, prob, cl_s, dire, ftrs, new_run_count)
-    vert = 2000
-    prob = 0.5
-    dire = False
-    cl_s = 42
-    ftrs = ['BFS']
-    new_run_count = 0
-    feature_calculation(vert, prob, cl_s, dire, ftrs, new_run_count)
+    for sz, cl_sz in [(50, 0)]:
+        vert = sz
+        prob = 0.5
+        dire = False
+        cl_s = cl_sz
+        ftrs = ['Motif_4']
+        new_run_count = 0
+        feature_calculation(vert, prob, cl_s, dire, ftrs, new_run_count)
+    # vert = 2000
+    # prob = 0.5
+    # dire = False
+    # cl_s = 40
+    # ftrs = ['Betweenness', 'BFS']
+    # new_run_count = 16
+    # feature_calculation(vert, prob, cl_s, dire, ftrs, new_run_count)
