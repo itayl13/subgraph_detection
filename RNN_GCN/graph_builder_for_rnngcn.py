@@ -8,35 +8,22 @@ import pickle
 import sys
 import torch
 
-if torch.version.cuda.split('.')[0] == '10':
-    sys.path.append(os.path.abspath('.'))
-    sys.path.append(os.path.abspath('../graph_calculations/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_algorithms/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_algorithms/accelerated_graph_features/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_algorithms/vertices/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_infra/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/graph_infra/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_processor/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_infra/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_meta/'))
-else:
-    sys.path.append(os.path.abspath('.'))
-    sys.path.append(os.path.abspath('../graph_calculations/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/vertices/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/graph_infra/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_processor/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_meta/'))
-from betweenness_centrality import BetweennessCentralityCalculator
-from vertices.bfs_moments import BfsMomentsCalculator
+sys.path.append(os.path.abspath('.'))
+sys.path.append(os.path.abspath('../graph_calculations/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/vertices/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/graph_infra/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_processor/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_meta/'))
+from vertices.betweenness_centrality import BetweennessCentralityCalculator
+from accelerated_graph_features.bfs_moments import BfsMomentsCalculator
 from feature_calculators import FeatureMeta
 from graph_features import GraphFeatures
-from features_algorithms.accelerated_graph_features.motifs import nth_nodes_motif, MotifsNodeCalculator
+from accelerated_graph_features.motifs import nth_nodes_motif, MotifsNodeCalculator
 from additional_features import AdditionalFeatures, MotifProbability
 
 
@@ -356,8 +343,6 @@ def feature_calculation(v, p, cs, d, features, new_runs):
         os.mkdir(head_path)
         print("Made new directory")
     graph_ids = os.listdir(head_path)
-    if 'additional_features.pkl' in graph_ids:
-            graph_ids.remove('additional_features.pkl')
     if len(graph_ids) == 0 and new_runs == 0:
         raise ValueError('No runs here!')
 

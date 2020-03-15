@@ -26,8 +26,6 @@ class DeshpandeMontanari:
 
     def _load_data(self):
         graph_ids = os.listdir(self._head_path)
-        if 'additional_features.pkl' in graph_ids:
-            graph_ids.remove('additional_features.pkl')
         if len(graph_ids) == 0:
             raise ValueError('No runs of G(%d, %s) with a clique of %d were saved, and no new runs were requested.'
                              % (self._params['vertices'], str(self._params['probability']),
@@ -134,11 +132,11 @@ def roc_curves_for_comparison():
 
 
 def performance_test_dm():
-    with open('DM_algorithm_testing_added.csv', 'w') as f:
+    with open('DM_algorithm_testing_2cs_500.csv', 'w') as f:
         wr = csv.writer(f)
         wr.writerow(['Graph Size (all undirected)', 'Clique Size', 'Mean remaining clique vertices %', 'AUC on all runs'])
         # for sz, cl_sz in list(product([500], range(10, 23))) + list(product([2000], range(12, 45))):
-        for sz, cl_sz in list(product([2000], range(12, 22))):
+        for sz, cl_sz in list(product([500], range(10, 23))):
             print(str(sz) + ",", cl_sz)
             dm = DeshpandeMontanari(sz, 0.5, cl_sz, False)
             scores, lbs = dm.algorithm(t_star=100)
@@ -148,7 +146,7 @@ def performance_test_dm():
                 ranks_by_run = scores[r*sz:(r+1)*sz]
                 labels_by_run = lbs[r*sz:(r+1)*sz]
                 sorted_vertices_by_run = np.argsort(ranks_by_run)
-                c_n_hat_by_run = sorted_vertices_by_run[-cl_sz:]
+                c_n_hat_by_run = sorted_vertices_by_run[-2 * cl_sz:]
                 remaining_clique_vertices.append(len([v for v in c_n_hat_by_run if labels_by_run[v]]))
             wr.writerow([str(val)
                          for val in [sz, cl_sz,

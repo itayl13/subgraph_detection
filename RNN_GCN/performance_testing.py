@@ -190,8 +190,6 @@ def random_classifier(filename, sizes):
             key_name = 'n_' + str(sz) + '_p_' + str(0.5) + '_size_' + str(cl_sz) + '_ud'
             head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', key_name + '_runs')
             graph_ids = os.listdir(head_path)
-            if 'additional_features.pkl' in graph_ids:
-                graph_ids.remove('additional_features.pkl')
             for iteration in range(10):
                 for run in range(len(graph_ids)):
                     dir_path = os.path.join(head_path, key_name + "_run_" + str(run))

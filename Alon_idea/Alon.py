@@ -27,8 +27,6 @@ class Alon:
 
     def _load_data(self):
         graph_ids = os.listdir(self._head_path)
-        if 'additional_features.pkl' in graph_ids:
-            graph_ids.remove('additional_features.pkl')
         if len(graph_ids) == 0:
             raise ValueError('No runs of G(%d, %s) with a clique of %d were saved, and no new runs were requested.'
                              % (self._params['vertices'], str(self._params['probability']),

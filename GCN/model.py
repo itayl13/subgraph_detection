@@ -15,6 +15,9 @@ class GCN(Module):  # Full GCN structure
         hidden_layers = [n_features] + hidden_layers + [1]    # input_dim, hidden_layer0, ..., hidden_layerN, 1
         self._layers = ModuleList([layer_type(first, second)
                                    for first, second in zip(hidden_layers[:-1], hidden_layers[1:])])
+        self._alpha = Parameter(torch.tensor(0.), requires_grad=False)
+        self._beta = Parameter(torch.tensor(0.), requires_grad=True)
+        self._gamma = Parameter(torch.tensor(-1.), requires_grad=True)
         self._activations = activations  # Activation functions from input layer to last hidden layer
         self._dropout = dropout
 
@@ -38,6 +41,13 @@ class GCN(Module):  # Full GCN structure
         r_mat_inv = torch.diag(r_inv).to(rowsum.device)
         mx = torch.mm(torch.mm(r_mat_inv, a_new + a_t + torch.eye(a.shape[0], dtype=torch.double).to(rowsum.device)), r_mat_inv)  # D^-0.5 *(A+A^T+I)* D^-0.5
         return mx
+    # def normalize(self, a):
+    #     a_s = torch.sign(a + a.t())
+    #     a_tilde_diag = torch.eye(a_s.size(0), dtype=a_s.dtype, device=a_s.device) * self._gamma
+    #     a_tilde_off_diag = torch.where(a_s > 0, torch.exp(self._alpha), -torch.exp(self._beta))
+    #     a_tilde_off_diag -= torch.diag(torch.diag(a_tilde_off_diag))
+    #     a_tilde = (a_tilde_diag + a_tilde_off_diag) * (torch.pow(torch.tensor(a.size(0), dtype=torch.float64), -0.5))
+    #     return a_tilde
 
 
 ###################################################################################
@@ -46,15 +56,13 @@ class GraphConvolution(Module):  # Symmetric GCN layer
     Simple GCN layer, similar to https://arxiv.org/abs/1609.02907
     """
 
-    def __init__(self, in_features, out_features, bias=True):
+    def __init__(self, in_features, out_features):
         super(GraphConvolution, self).__init__()
         self.in_features = int(in_features)
         self.out_features = int(out_features)
-        self.weight = Parameter(torch.DoubleTensor(self.in_features, self.out_features))
-        if bias:
-            self.bias = Parameter(torch.DoubleTensor(self.out_features))
-        else:
-            self.register_parameter('bias', None)
+        self.weight = Parameter(torch.zeros((self.in_features, self.out_features), dtype=torch.double),
+                                requires_grad=True)
+        self.bias = Parameter(torch.zeros(self.out_features, dtype=torch.double), requires_grad=True)
         self.init_weights()
 
     def init_weights(self):

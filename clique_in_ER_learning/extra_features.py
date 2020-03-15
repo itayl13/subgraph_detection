@@ -21,8 +21,6 @@ class ExtraFeatures:
 
     def _load_other_things(self):
         graph_ids = os.listdir(self._head_path)
-        if 'additional_features.pkl' in graph_ids:
-            graph_ids.remove('additional_features.pkl')
         self._gnxs = []
         self._labels_by_run = []
         self._all_labels = []

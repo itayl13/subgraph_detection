@@ -9,16 +9,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, roc_curve
-import sys
-if not os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                    'graph_calculations/graph_measures/features_infra/')) in sys.path:
-    sys.path.append(os.path.dirname(__file__))
-    sys.path.append(os.path.abspath('../graph_calculations'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/graph_infra/'))
 try:
     from clique_in_ER_learning.graph_builder import GraphBuilder, MotifCalculator
     from clique_in_ER_learning.extra_features import ExtraFeatures
@@ -47,18 +37,13 @@ class FFNCliqueDetector:
         self._key_name = 'n_' + str(self._params["vertices"]) + '_p_' + str(
             self._params["probability"]) + '_size_' + str(
             self._params["clique_size"]) + ('_d' if self._params["directed"] else '_ud')
-        self._head_path = os.path.join('graph_calculations', 'pkl', self._key_name + '_runs')
+        self._head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl',
+                                       self._key_name + '_runs')
         self._load_data(check)
 
     def _load_data(self, check):
-        try:
-            graph_ids = os.listdir(self._head_path)
-        except FileNotFoundError:
-            for i in sys.path:
-                print(i)
-            raise FileNotFoundError
-        if 'additional_features.pkl' in graph_ids:
-            graph_ids.remove('additional_features.pkl')
+        graph_ids = os.listdir(self._head_path)
+
         if len(graph_ids) == 0:
             if self._num_runs == 0:
                 raise ValueError('No runs of G(%d, %s) with a clique of %d were saved, and no new runs were requested.'
@@ -390,8 +375,6 @@ def ffn_clique_for_performance_test(v, p, cs, d, hyper_parameters=None, check='C
         key_name = 'n_' + str(v) + '_p_' + str(p) + '_size_' + str(cs) + ('_d' if d else '_ud')
         head_path = os.path.join('graph_calculations', 'pkl', key_name + '_runs')
         graph_ids = os.listdir(head_path)
-        if 'additional_features.pkl' in graph_ids:
-            graph_ids.remove('additional_features.pkl')
         for run in range(len(graph_ids)):
             network = FFNCliqueDetector(v=v, p=p, cs=cs, d=d, hyper_parameters=hyper_parameters, is_nni=False, check=run)
             test_tags, test_labels, train_tags, train_labels = network.ffn_clique_for_performance_test()

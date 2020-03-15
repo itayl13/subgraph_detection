@@ -2,11 +2,17 @@ import networkx as nx
 import numpy as np
 import itertools
 import os
+import sys
 import pickle
 import datetime
-from features_infra.feature_calculators import FeatureMeta
-from features_algorithms.accelerated_graph_features.motifs import nth_nodes_motif, MotifsNodeCalculator
-# from features_algorithms.vertices.motifs import nth_nodes_motif, MotifsNodeCalculator
+sys.path.append(os.path.abspath('../graph_calculations'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
+sys.path.append(os.path.abspath('../graph_calculations/graph_measures/graph_infra/'))
+from feature_calculators import FeatureMeta
+from accelerated_graph_features.motifs import nth_nodes_motif, MotifsNodeCalculator
 from motif_probability_ import MotifProbability
 from graph_features import GraphFeatures
 
@@ -144,26 +150,29 @@ class MotifCalculator:
         if self._params["load_motifs"] or os.path.exists(os.path.join(self._dir_path, 'motif4.pkl')):
             pkl3 = pickle.load(open(os.path.join(self._dir_path, "motif3.pkl"), "rb"))
             pkl4 = pickle.load(open(os.path.join(self._dir_path, "motif4.pkl"), "rb"))
-            if type(pkl3) == dict:
-                motif3 = self._to_matrix(pkl3)
-            elif type(pkl3) == MotifsNodeCalculator:
+            try:
                 m3 = pkl3._features
                 if type(m3) == dict:
                     motif3 = self._to_matrix_(m3)
                 else:
                     motif3 = np.array(m3)
-            else:
-                motif3 = np.array(pkl3)
-            if type(pkl4) == dict:
-                motif4 = self._to_matrix(pkl4)
-            elif type(pkl4) == MotifsNodeCalculator:
+            except AttributeError:
+                if type(pkl3) == dict:
+                    motif3 = self._to_matrix(pkl3)
+                else:
+                    motif3 = np.array(pkl3)
+            try:
                 m4 = pkl4._features
                 if type(m4) == dict:
                     motif4 = self._to_matrix_(m4)
                 else:
                     motif4 = np.array(m4)
-            else:
-                motif4 = np.array(pkl4)
+            except AttributeError:
+                if type(pkl4) == dict:
+                    motif4 = self._to_matrix(pkl4)
+
+                else:
+                    motif4 = np.array(pkl4)
             self._motif_mat = np.hstack((motif3, motif4))
             if motifs_picked is not None:
                 self._motif_mat = self._motif_mat[:, motifs_picked]
@@ -179,16 +188,17 @@ class MotifCalculator:
     def _execute_for_3(self, motifs_picked):
         if self._params["load_motifs"] or os.path.exists(os.path.join(self._dir_path, 'motif3.pkl')):
             pkl3 = pickle.load(open(os.path.join(self._dir_path, "motif3.pkl"), "rb"))
-            if type(pkl3) == dict:
-                motif3 = self._to_matrix(pkl3)
-            elif type(pkl3) == MotifsNodeCalculator:
+            try:
                 m3 = pkl3._features
                 if type(m3) == dict:
                     motif3 = self._to_matrix_(m3)
                 else:
                     motif3 = np.array(m3)
-            else:
-                motif3 = np.array(pkl3)
+            except AttributeError:
+                if type(pkl3) == dict:
+                    motif3 = self._to_matrix(pkl3)
+                else:
+                    motif3 = np.array(pkl3)
             self._motif_mat = motif3
             self._motif_mat = self._motif_mat[:, motifs_picked]
             print(str(datetime.datetime.now()) + " , Calculated motifs")

@@ -1,5 +1,4 @@
 import os
-import sys
 import numpy as np
 import pickle
 from itertools import product
@@ -8,32 +7,7 @@ from gcn import main_gcn, gcn_for_performance_test
 from sklearn.preprocessing import StandardScaler
 from torch.optim import Adam, SGD
 import torch
-
-if torch.version.cuda.split('.')[0] == '10':
-    sys.path.append(os.path.abspath('.'))
-    sys.path.append(os.path.abspath('../graph_calculations/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_algorithms/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_algorithms/accelerated_graph_features/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_algorithms/vertices/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_infra/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/graph_infra/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_processor/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_infra/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures_cuda10/features_meta/'))
-
-else:
-    sys.path.append(os.path.abspath('.'))
-    sys.path.append(os.path.abspath('../graph_calculations/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/vertices/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/graph_infra/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_processor/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
-    sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_meta/'))
+from torch.nn.functional import relu, tanh
 
 
 class GCNCliqueDetector:
@@ -60,8 +34,6 @@ class GCNCliqueDetector:
     def _load_data(self):
         # The training data is a matrix of graph features (degrees), leaving one graph out for test.
         graph_ids = os.listdir(self._head_path)
-        if 'additional_features.pkl' in graph_ids:
-            graph_ids.remove('additional_features.pkl')
         if len(graph_ids) == 0 and self._new_runs == 0:
             raise ValueError('No runs of G(%d, %s) with a clique of %d were saved, and no new runs were requested.'
                              % (self._params['vertices'], str(self._params['probability']),
@@ -76,7 +48,7 @@ class GCNCliqueDetector:
             gnx = data.graph()
             labels = data.labels()
 
-            fc = FeatureCalculator(self._params, gnx, dir_path, self._params['features'], gpu=True, device=run % 3)
+            fc = FeatureCalculator(self._params, gnx, dir_path, self._params['features'], gpu=True, device=0)
             feature_matrix = fc.feature_matrix
             adjacency_matrix = fc.adjacency_matrix
             self._adjacency_matrices.append(adjacency_matrix)
@@ -86,16 +58,6 @@ class GCNCliqueDetector:
                 self._labels += new_labels
             else:
                 self._labels += [labels]
-        # rand_test_indices = np.random.choice(self._num_runs, round(self._num_runs * 0.2), replace=False)
-        # train_indices = np.delete(np.arange(self._num_runs), rand_test_indices)
-        #
-        # self._test_features = [self._feature_matrices[j] for j in rand_test_indices]
-        # self._test_adj = [self._adjacency_matrices[j] for j in rand_test_indices]
-        # self._test_labels = [self._labels[j] for j in rand_test_indices]
-        #
-        # self._training_features = [self._feature_matrices[j] for j in train_indices]
-        # self._training_adj = [self._adjacency_matrices[j] for j in train_indices]
-        # self._training_labels = [self._labels[j] for j in train_indices]
         self._scale_matrices()
 
     def _scale_matrices(self):
@@ -110,26 +72,21 @@ class GCNCliqueDetector:
             _ = main_gcn(feature_matrices=self._feature_matrices, adj_matrices=self._adjacency_matrices, labels=self._labels,
                          hidden_layers=[425, 225, 40],
                          epochs=30, dropout=0.02, lr=0.044949,  l2_pen=0.216205,
-                         iterations=2, dumping_name=self._key_name,
-                         optimizer=Adam,
-                         rerun=True,
-                         graph_params=self._params,
-                         is_nni=self._nni)
+                         iterations=2, dumping_name=self._key_name, early_stop=True,
+                         optimizer=Adam, activation=relu, graph_params=self._params, is_nni=self._nni)
 
         else:
             _ = main_gcn(feature_matrices=self._feature_matrices, adj_matrices=self._adjacency_matrices, labels=self._labels,
                          hidden_layers=input_params["hidden_layers"],
                          epochs=input_params["epochs"], dropout=input_params["dropout"],
                          lr=input_params["lr"], l2_pen=input_params["regularization"],
-                         iterations=2, dumping_name=self._key_name,
-                         optimizer=input_params["optimizer"],
-                         rerun=input_params["rerun"],
-                         graph_params=self._params,
-                         is_nni=self._nni)
+                         iterations=2, dumping_name=self._key_name, early_stop=input_params["early_stop"],
+                         optimizer=input_params["optimizer"], activation=input_params["activation"],
+                         graph_params=self._params, is_nni=self._nni)
         return None
 
     def single_implementation(self, input_params, check='split'):
-        all_test_ranks, all_test_labels, all_train_ranks, all_train_labels, all_train_losses, all_test_losses = gcn_for_performance_test(
+        aggregated_results = gcn_for_performance_test(
             feature_matrices=self._feature_matrices,
             adj_matrices=self._adjacency_matrices,
             labels=self._labels,
@@ -138,12 +95,13 @@ class GCNCliqueDetector:
             dropout=input_params["dropout"],
             lr=input_params["lr"],
             l2_pen=input_params["regularization"],
-            iterations=5, dumping_name=self._key_name,
+            iterations=3, dumping_name=self._key_name,
             optimizer=input_params["optimizer"],
-            rerun=input_params["rerun"],
+            activation=input_params["activation"],
+            early_stop=input_params["early_stop"],
             graph_params=self._params,
             check=check)
-        return all_test_ranks, all_test_labels, all_train_ranks, all_train_labels, all_train_losses, all_test_losses
+        return aggregated_results
 
     def all_labels_to_pkl(self):
         pickle.dump(self._labels, open(os.path.join(self._head_path, 'all_labels.pkl'), 'wb'))
@@ -164,6 +122,5 @@ if __name__ == "__main__":
     # gcn_detector = GCNCliqueDetector(500, 0.5, 15, False,
     #                                  features=['Degree', 'Betweenness', 'BFS'], new_runs=0, norm_adj=True)
     # gcn_detector.train()
-    gg = GCNCliqueDetector(2000, 0.5, 22, False, features=['Motif_3', 'additional_features'])
+    gg = GCNCliqueDetector(500, 0.5, 22, False, features=['Motif_3', 'additional_features'])
     gg.train()
-    t = 0
