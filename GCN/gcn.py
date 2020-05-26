@@ -36,7 +36,7 @@ class ModelRunner:
         self.bar = 0.5
         self._lr = conf["lr"]
         self._is_nni = is_nni
-        self._device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
+        self._device = torch.device('cuda:2') if torch.cuda.is_available() else torch.device('cpu')
 
     def _build_weighted_loss(self, labels):
         weights_list = []
@@ -98,10 +98,6 @@ class ModelRunner:
         # Final evaluation and Test
         eval_res = self.eval(model=model, verbose=verbose if not self._is_nni else 0)
         result = self.test(model=model, verbose=verbose if not self._is_nni else 0)
-        # TODO
-        print("alpha: ", model["model"]._alpha)
-        print("beta: ", model["model"]._beta)
-        print("gamma: ", model["model"]._gamma)
 
         intermediate_results = {
             "auc_train": intermediate_training_results["auc"],
@@ -267,7 +263,7 @@ def execute_runner(runners, is_nni=False):
     if is_nni:
         # NNI reporting. now reporting -losses, trying to maximize this. It can also be done for AUCs.
         final_loss = np.mean([all_final_results[it]["loss_test"] for it in range(len(all_final_results))])
-        nni.report_final_result(-final_loss)
+        nni.report_final_result(np.exp(-final_loss))
 
         # Reporting results to loggers
         aggr_final_results = {"auc_train": [d["auc_train"] for d in all_final_results],
@@ -332,7 +328,7 @@ def main_gcn(feature_matrices, adj_matrices, labels, hidden_layers,
     class_weights = {0: (float(graph_params['vertices']) / (graph_params['vertices'] - graph_params['clique_size'])),
                      1: (float(graph_params['vertices']) / graph_params['clique_size'])}
     runners = []
-    if len(labels) != 20:
+    if len(labels) < 20:
         raise FileNotFoundError("Not enough graphs. Expected 20, got %d" % len(labels))
     for it in range(iterations):
         rand_test_indices = np.random.choice(len(labels), round(len(labels) * 0.4), replace=False)  # Test + Eval
@@ -402,8 +398,8 @@ def gcn_for_performance_test(feature_matrices, adj_matrices, labels, hidden_laye
     class_weights = {0: (float(graph_params['vertices']) / (graph_params['vertices'] - graph_params['clique_size'])),
                      1: (float(graph_params['vertices']) / graph_params['clique_size'])}
     runners = []
-    if len(labels) < 20:
-        raise FileNotFoundError("Not enough graphs. Expected 20, got %d" % len(labels))
+    # if len(labels) < 20:
+    #     raise FileNotFoundError("Not enough graphs. Expected 20, got %d" % len(labels))
     if check == 'split':
         for it in range(iterations):
             rand_test_indices = np.random.choice(len(labels), round(len(labels) * 0.4), replace=False)  # Test + Eval
@@ -436,13 +432,77 @@ def gcn_for_performance_test(feature_matrices, adj_matrices, labels, hidden_laye
         # From choosing the folds, the choice of eval is done such that every run new graphs will become eval.
         all_indices = np.arange(len(labels))
         np.random.shuffle(all_indices)
-        folds = np.split(all_indices, 5)
+        folds = np.array_split(all_indices, 5)
         # For now we prefer fewer runs, so we will take only 2 of the 5 validations.
         for it in range(2):  # range(len(folds)):
             test_fold = folds[it]
             eval_fold = folds[(it + 1) % 5]
             train_indices = np.hstack([folds[(it + 2 + j) % 5] for j in range(3)])
 
+            training_features = [feature_matrices[j] for j in train_indices]
+            training_adj = [adj_matrices[j] for j in train_indices]
+            training_labels = [labels[j] for j in train_indices]
+
+            eval_features = [feature_matrices[j] for j in eval_fold]
+            eval_adj = [adj_matrices[j] for j in eval_fold]
+            eval_labels = [labels[j] for j in eval_fold]
+
+            test_features = [feature_matrices[j] for j in test_fold]
+            test_adj = [adj_matrices[j] for j in test_fold]
+            test_labels = [labels[j] for j in test_fold]
+
+            activations = [activation] * (len(hidden_layers) + 1)
+            runner = build_model(training_features, training_adj, training_labels,
+                                 eval_features, eval_adj, eval_labels,
+                                 test_features, test_adj, test_labels,
+                                 hidden_layers, activations, optimizer, epochs, dropout, lr,
+                                 l2_pen, class_weights, graph_params, dumping_name, early_stop=early_stop,
+                                 is_nni=False)
+            runners.append(runner)
+    elif check == 'one_split_many_iterations':
+        # 5-Fold CV, one fold for test graphs, one fold for eval and the rest are training.
+        # Here, running with the same split for many iterations.
+        all_indices = np.arange(len(labels))
+        np.random.shuffle(all_indices)
+        folds = np.array_split(all_indices, 5)
+        test_fold = folds[0]
+        eval_fold = folds[1]
+        train_indices = np.hstack((folds[2], folds[3], folds[4]))
+        for it in range(10):
+            training_features = [feature_matrices[j] for j in train_indices]
+            training_adj = [adj_matrices[j] for j in train_indices]
+            training_labels = [labels[j] for j in train_indices]
+
+            eval_features = [feature_matrices[j] for j in eval_fold]
+            eval_adj = [adj_matrices[j] for j in eval_fold]
+            eval_labels = [labels[j] for j in eval_fold]
+
+            test_features = [feature_matrices[j] for j in test_fold]
+            test_adj = [adj_matrices[j] for j in test_fold]
+            test_labels = [labels[j] for j in test_fold]
+
+            activations = [activation] * (len(hidden_layers) + 1)
+            runner = build_model(training_features, training_adj, training_labels,
+                                 eval_features, eval_adj, eval_labels,
+                                 test_features, test_adj, test_labels,
+                                 hidden_layers, activations, optimizer, epochs, dropout, lr,
+                                 l2_pen, class_weights, graph_params, dumping_name, early_stop=early_stop,
+                                 is_nni=False)
+            runners.append(runner)
+    elif check == 'set_split_many_iterations':
+        # 5-Fold CV, one fold for test graphs, one fold for eval and the rest are training.
+        # Here, running with the same split for many iterations.
+        test_eval_train_by_clique_size = {
+            # 20: (np.array([6, 7]), np.array([1, 2]), np.array([0, 4, 5, 8, 9])),
+            # 21: (np.array([1, 6]), np.array([0, 9]), np.array([2, 3, 4, 7])),
+            # 22: (np.array([4]), np.array([3]), np.array([0, 1, 2]))
+            # Originally, before removing outliers from train:
+            20: (np.array([6, 7]), np.array([1, 2]), np.array([0, 3, 4, 5, 8, 9])),
+            21: (np.array([1, 6]), np.array([0, 9]), np.array([2, 3, 4, 5, 7, 8])),
+            22: (np.array([4]), np.array([3]), np.array([0, 1, 2]))
+        }
+        test_fold, eval_fold, train_indices = test_eval_train_by_clique_size[graph_params['clique_size']]
+        for it in range(10):
             training_features = [feature_matrices[j] for j in train_indices]
             training_adj = [adj_matrices[j] for j in train_indices]
             training_labels = [labels[j] for j in train_indices]

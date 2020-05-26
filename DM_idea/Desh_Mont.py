@@ -1,11 +1,11 @@
 import os
-import pickle
-import numpy as np
-import networkx as nx
-from scipy.special import factorial
-from scipy.stats import norm
-from itertools import product
 import csv
+import numpy as np
+import pandas as pd
+import pickle
+import networkx as nx
+from scipy.linalg import eigh
+from itertools import product, combinations
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, roc_auc_score
 
@@ -88,38 +88,8 @@ class DeshpandeMontanari:
               (len([v for v in c_n_hat if labels[v]]), len(c_n_hat)))
         return list(gamma_vectors[t_star])
 
-    @staticmethod
-    def expected_value(mu_hat, l_factor, d_star, kappa):
-        return kappa / l_factor * sum([np.power(mu_hat, k) * norm.moment(n=k, loc=mu_hat) for k in range(d_star + 1)])
-
-    @staticmethod
-    def p_functions(l_factor, d_star, mu_hat, z):
-        return 1. / l_factor * sum([np.power(mu_hat, k) * np.power(z, k) / factorial(k) for k in range(d_star + 1)])
-
-    @staticmethod
-    def zeta(b_n, rho_hat, w, v):
-        return sum([w[v, j] for j in b_n if abs(w[v, j]) <= rho_hat])
-
 
 def roc_curves_for_comparison():
-    # plt.figure()
-    # dm_500_15 = DeshpandeMontanari(500, 0.5, 15, False)
-    # ranks, labels = dm_500_15.algorithm(t_star=100)
-    # fpr, tpr, _ = roc_curve(labels, ranks)
-    # plt.plot(fpr, tpr)
-    # plt.xlabel('fpr')
-    # plt.ylabel('tpr')
-    # plt.title('DM on G(500, 0.5, 15), AUC = %3.4f' % roc_auc_score(labels, ranks))
-    # plt.savefig('DM_500_15.png')
-    # plt.figure()
-    # dm_100_12 = DeshpandeMontanari(100, 0.5, 12, False)
-    # ranks, labels = dm_100_12.algorithm(t_star=100)
-    # fpr, tpr, _ = roc_curve(labels, ranks)
-    # plt.plot(fpr, tpr)
-    # plt.xlabel('fpr')
-    # plt.ylabel('tpr')
-    # plt.title('DM on G(100, 0.5, 12), AUC = %3.4f' % roc_auc_score(labels, ranks))
-    # plt.savefig('DM_100_12.png')
     plt.figure()
     dm_2000_20 = DeshpandeMontanari(2000, 0.5, 20, False)
     ranks, labels = dm_2000_20.algorithm(t_star=100)
@@ -154,6 +124,124 @@ def performance_test_dm():
                                      np.round(auc, 4)]])
 
 
+def cleaning_algorithm(graph, first_candidates, cl_sz):
+    dm_candidates = first_candidates
+    dm_adjacency = nx.adjacency_matrix(graph, nodelist=dm_candidates).toarray()
+    normed_dm_adj = 1 / np.sqrt(len(graph)) * ((dm_adjacency + dm_adjacency.T) - 1 + np.eye(dm_adjacency.shape[0]))  # Zeros on the diagonal
+    _, eigenvec = eigh(normed_dm_adj, eigvals=(normed_dm_adj.shape[0] - 1, normed_dm_adj.shape[0] - 1))
+    dm_next_set = [dm_candidates[v] for v in np.argsort(np.abs(eigenvec.ravel()))[-cl_sz:].tolist()]
+    updates = 0
+    while (not all([graph.has_edge(v1, v2) for v1, v2 in combinations(dm_next_set, 2)])) and (updates < 50):
+        connection_to_set = [len(set(graph.neighbors(v)).intersection(set(dm_next_set))) for v in graph]
+        dm_next_set = np.argsort(connection_to_set)[-cl_sz:].tolist()
+        updates += 1
+    return dm_next_set, updates
+
+
+def get_cliques(sizes, filename):
+    # Assuming we have already applied remaining vertices analysis on the relevant graphs.
+    success_rate_dict = {'Graph Size': [], 'Clique Size': [],
+                         'Num. Graphs': [], 'Num. Successes': []}
+    for sz, cl_sz in sizes:
+        print(str(sz) + ",", cl_sz)
+        dm = DeshpandeMontanari(sz, 0.5, cl_sz, False)
+        scores, _ = dm.algorithm(t_star=100)
+        num_success = 0
+        num_trials = len(scores) // sz
+        key_name = 'n_' + str(sz) + '_p_0.5_size_' + str(cl_sz) + '_ud'
+        head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', key_name + '_runs')
+        for r in range(num_trials):
+            ranks_by_run = scores[r*sz:(r+1)*sz]
+            sorted_vertices_by_run = np.argsort(ranks_by_run)
+            c_n_hat_by_run = sorted_vertices_by_run[-2 * cl_sz:]
+            dir_path = os.path.join(head_path, key_name + "_run_" + str(r))
+            graph = pickle.load(open(os.path.join(dir_path, 'gnx.pkl'), 'rb'))
+            final_set, _ = cleaning_algorithm(graph, c_n_hat_by_run, cl_sz)
+            if all([graph.has_edge(v1, v2) for v1, v2 in combinations(final_set, 2)]):
+                num_success += 1
+        print("Success rates: " + str(num_success / float(num_trials)))
+        for key, value in zip(['Graph Size', 'Clique Size', 'Num. Graphs', 'Num. Successes'],
+                              [sz, cl_sz, num_trials, num_success]):
+            success_rate_dict[key].append(value)
+    success_rate_df = pd.DataFrame(success_rate_dict)
+    success_rate_df.to_excel(filename, index=False)
+
+
+def inspect_second_phase(sizes, filename):
+    measurements_dict = {'Graph Size': [], 'Clique Size': [], 'Clique Remaining Num.': [],
+                         'Num. Iterations': [], 'Success': []}
+    for sz, cl_sz in sizes:
+        print(str(sz) + ",", cl_sz)
+        dm = DeshpandeMontanari(sz, 0.5, cl_sz, False)
+        scores, lbs = dm.algorithm(t_star=100)
+        key_name = 'n_' + str(sz) + '_p_0.5_size_' + str(cl_sz) + '_ud'
+        head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', key_name + '_runs')
+        for r in range(len(scores) // sz):
+            ranks_by_run = scores[r*sz:(r+1)*sz]
+            labels_by_run = lbs[r*sz:(r+1)*sz]
+            sorted_vertices_by_run = np.argsort(ranks_by_run)
+            c_n_hat_by_run = sorted_vertices_by_run[-2 * cl_sz:]
+            clique_remaining = len([v for v in c_n_hat_by_run if labels_by_run[v]])
+            dir_path = os.path.join(head_path, key_name + "_run_" + str(r))
+            graph = pickle.load(open(os.path.join(dir_path, 'gnx.pkl'), 'rb'))
+            final_set, num_iterations = cleaning_algorithm(graph, c_n_hat_by_run, cl_sz)
+            success = 1 if all([graph.has_edge(v1, v2) for v1, v2 in combinations(final_set, 2)]) else 0
+            for key, value in zip(['Graph Size', 'Clique Size', 'Clique Remaining Num.', 'Num. Iterations', 'Success'],
+                                  [sz, cl_sz, clique_remaining, num_iterations, success]):
+                measurements_dict[key].append(value)
+    measurements_df = pd.DataFrame(measurements_dict)
+    measurements_df.to_excel(filename, index=False)
+
+
+def trio(sizes, filename_success_rate, filename_run_analysis):
+    with open('DM_algorithm_testing_2cs_500.csv', 'w') as f:
+        wr = csv.writer(f)
+        wr.writerow(['Graph Size (all undirected)', 'Clique Size', 'Mean remaining clique vertices %', 'AUC on all runs'])
+        success_rate_dict = {'Graph Size': [], 'Clique Size': [], 'Num. Graphs': [], 'Num. Successes': []}
+        measurements_dict = {'Graph Size': [], 'Clique Size': [], 'Clique Remaining Num.': [],
+                             'Num. Iterations': [], 'Success': []}
+        for sz, cl_sz in sizes:
+            print(str(sz) + ",", cl_sz)
+            dm = DeshpandeMontanari(sz, 0.5, cl_sz, False)
+            scores, lbs = dm.algorithm(t_star=100)
+            num_success = 0
+            num_trials = len(scores) // sz
+            key_name = 'n_' + str(sz) + '_p_0.5_size_' + str(cl_sz) + '_ud'
+            head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', key_name + '_runs')
+            auc = []
+            remaining_clique_vertices = []
+            for r in range(len(lbs) // sz):
+                ranks_by_run = scores[r*sz:(r+1)*sz]
+                labels_by_run = lbs[r*sz:(r+1)*sz]
+                auc.append(roc_auc_score(labels_by_run, ranks_by_run))
+                sorted_vertices_by_run = np.argsort(ranks_by_run)
+                c_n_hat_by_run = sorted_vertices_by_run[-2 * cl_sz:]
+                remaining_clique_vertices.append(len([v for v in c_n_hat_by_run if labels_by_run[v]]))
+                dir_path = os.path.join(head_path, key_name + "_run_" + str(r))
+                graph = pickle.load(open(os.path.join(dir_path, 'gnx.pkl'), 'rb'))
+                final_set, num_iterations = cleaning_algorithm(graph, c_n_hat_by_run, cl_sz)
+                success = 1 if all([graph.has_edge(v1, v2) for v1, v2 in combinations(final_set, 2)]) else 0
+                num_success += success
+                for key, value in zip(
+                        ['Graph Size', 'Clique Size', 'Clique Remaining Num.', 'Num. Iterations', 'Success'],
+                        [sz, cl_sz, remaining_clique_vertices[-1], num_iterations, success]):
+                    measurements_dict[key].append(value)
+            print("Success rates: " + str(num_success / float(num_trials)))
+            for key, value in zip(['Graph Size', 'Clique Size', 'Num. Graphs', 'Num. Successes'],
+                                  [sz, cl_sz, num_trials, num_success]):
+                success_rate_dict[key].append(value)
+            wr.writerow([str(val)
+                         for val in [sz, cl_sz,
+                                     np.round(np.mean(remaining_clique_vertices) * (100. / cl_sz), 2),
+                                     np.round(np.mean(auc), 4)]])
+        success_rate_df = pd.DataFrame(success_rate_dict)
+        success_rate_df.to_excel(filename_success_rate, index=False)
+        measurements_df = pd.DataFrame(measurements_dict)
+        measurements_df.to_excel(filename_run_analysis, index=False)
+
+
 if __name__ == "__main__":
     # roc_curves_for_comparison()
-    performance_test_dm()
+    # performance_test_dm()
+    n_cs = list(product([500], range(10, 23)))
+    trio(n_cs, "n_500_cs_10-22_dm_success_rates_v0.xlsx", "n_500_cs_10-22_dm_run_analysis_v0.xlsx")

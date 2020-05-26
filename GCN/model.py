@@ -30,24 +30,24 @@ class GCN(Module):  # Full GCN structure
         x = layers[-1](x, adj)
         return torch.sigmoid(x)
 
-    @staticmethod
-    def normalize(a):
-        a_new = 2 * a - torch.ones_like(a)  # A_new = 1 if edge else -1
-        a_t = a_new.t()
-        rowsum = torch.sum(a, dim=1)
-        exponents = torch.DoubleTensor([-0.5 if i != 0 else 1 for i in rowsum]).to(rowsum.device)
-        rowsum = torch.pow(rowsum, exponents)
-        r_inv = rowsum.flatten()
-        r_mat_inv = torch.diag(r_inv).to(rowsum.device)
-        mx = torch.mm(torch.mm(r_mat_inv, a_new + a_t + torch.eye(a.shape[0], dtype=torch.double).to(rowsum.device)), r_mat_inv)  # D^-0.5 *(A+A^T+I)* D^-0.5
-        return mx
-    # def normalize(self, a):
-    #     a_s = torch.sign(a + a.t())
-    #     a_tilde_diag = torch.eye(a_s.size(0), dtype=a_s.dtype, device=a_s.device) * self._gamma
-    #     a_tilde_off_diag = torch.where(a_s > 0, torch.exp(self._alpha), -torch.exp(self._beta))
-    #     a_tilde_off_diag -= torch.diag(torch.diag(a_tilde_off_diag))
-    #     a_tilde = (a_tilde_diag + a_tilde_off_diag) * (torch.pow(torch.tensor(a.size(0), dtype=torch.float64), -0.5))
-    #     return a_tilde
+    # @staticmethod
+    # def normalize(a):
+    #     a_new = 2 * a - torch.ones_like(a)  # A_new = 1 if edge else -1
+    #     a_t = a_new.t()
+    #     rowsum = torch.sum(a, dim=1)
+    #     exponents = torch.DoubleTensor([-0.5 if i != 0 else 1 for i in rowsum]).to(rowsum.device)
+    #     rowsum = torch.pow(rowsum, exponents)
+    #     r_inv = rowsum.flatten()
+    #     r_mat_inv = torch.diag(r_inv).to(rowsum.device)
+    #     mx = torch.mm(torch.mm(r_mat_inv, a_new + a_t + torch.eye(a.shape[0], dtype=torch.double).to(rowsum.device)), r_mat_inv)  # D^-0.5 *(A+A^T+I)* D^-0.5
+    #     return mx
+    def normalize(self, a):
+        a_s = torch.sign(a + a.t())
+        a_tilde_diag = torch.eye(a_s.size(0), dtype=a_s.dtype, device=a_s.device) * self._gamma
+        a_tilde_off_diag = torch.where(a_s > 0, torch.exp(self._alpha), -torch.exp(self._beta))
+        a_tilde_off_diag -= torch.diag(torch.diag(a_tilde_off_diag))
+        a_tilde = (a_tilde_diag + a_tilde_off_diag) * (torch.pow(torch.tensor(a.size(0), dtype=torch.float64), -0.5))
+        return a_tilde
 
 
 ###################################################################################

@@ -46,7 +46,6 @@ class Alon:
     def algorithm(self):
         ranks = []
         all_labels = []
-        # for g in range(min(len(self._graphs), 4)):
         for g in range(len(self._graphs)):
             graph = self._graphs[g]
             labels = self._labels[g]
@@ -108,7 +107,6 @@ def performance_test_alon():
         wr = csv.writer(f)
         wr.writerow(['Graph Size (all undirected)', 'Clique Size', 'Mean remaining clique vertices %', 'AUC on all runs'])
         for sz, cl_sz in list(product([500], range(10, 23))) + list(product([2000], range(12, 45))):
-        # for sz, cl_sz in list(product([2000], range(12, 22))):
             print(str(sz) + ",", cl_sz)
             al = Alon(sz, 0.5, cl_sz, False)
             scores, lbs = al.algorithm()

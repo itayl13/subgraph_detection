@@ -7,7 +7,6 @@ import os
 import pickle
 import numpy as np
 import networkx as nx
-from scipy.optimize import minimize
 from scipy.stats import norm
 from itertools import product
 import csv
@@ -32,8 +31,6 @@ class DekelGurelGurevichPeres:
 
     def _load_data(self):
         graph_ids = os.listdir(self._head_path)
-        if 'additional_features.pkl' in graph_ids:
-            graph_ids.remove('additional_features.pkl')
         if len(graph_ids) == 0:
             raise ValueError('No runs of G(%d, %s) with a clique of %d were saved, and no new runs were requested.'
                              % (self._params['vertices'], '0.5',
@@ -166,11 +163,12 @@ class DekelGurelGurevichPeres:
 
 
 def performance_test_dgp():
-    with open('DGP_algorithm_testing.csv', 'w') as f:
+    with open('DGP_algorithm_testing_easy.csv', 'w') as f:
         wr = csv.writer(f)
         wr.writerow(['Graph Size (all undirected)', 'Clique Size', 'Mean remaining clique vertices %', 'AUC on all runs'])
-        for sz, cl_sz in list(product([500], range(10, 23))) + list(product([2000], range(12, 45))):
-        # for sz, cl_sz in list(product([2000], range(12, 22))):
+        # for sz, cl_sz in product([500], range(10, 23)):
+        # for sz, cl_sz in product([2000], range(12, 45)):
+        for sz, cl_sz in [(100, 12), (50, 10)]:
             print(str(sz) + ",", cl_sz)
             dgp = DekelGurelGurevichPeres(sz, cl_sz, False)
             scores, lbs = dgp.algorithm()
@@ -189,5 +187,4 @@ def performance_test_dgp():
 
 
 if __name__ == "__main__":
-    # roc_curves_for_comparison()
     performance_test_dgp()

@@ -1,77 +1,37 @@
 import os
 from itertools import product, combinations
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.linalg import eigh
 import glob
 import pandas as pd
 import pickle
 import networkx as nx
-from torch import relu
-from torch.optim import Adam, SGD
-
-from GCN_clique_detector import GCNCliqueDetector
-
-
-PARAMS_500 = {
-    "features": ['Degree', 'Betweenness', 'BFS', 'Motif_3', 'additional_features'],
-    "hidden_layers": [450, 430, 60, 350],
-    "epochs": 1000,
-    "dropout": 0.175,
-    "lr": 0.08,
-    "regularization": 0.0003,
-    "optimizer": SGD,
-    "activation": relu,
-    "early_stop": True
-}
-
-PARAMS_100 = {
-    "features": [],
-    "hidden_layers": [200, 250, 300],
-    "epochs": 40,
-    "dropout": 0.175,
-    "lr": 0.0006,
-    "regularization": 0.35,
-    "optimizer": Adam,
-    "activation": relu,
-    "early_stop": True
-}
-
-PARAMS_2000 = {
-    "features": ['Degree', 'Betweenness', 'BFS'],
-    "hidden_layers": [100, 310, 200, 350],
-    "epochs": 100,
-    "dropout": 0.15,
-    "lr": 0.17,
-    "regularization": 0.01,
-    "optimizer": Adam,
-    "activation": relu,
-    "early_stop": True
-}
 
 PROB = 0.5
 DIRECTED = False
 
 
 # Analysis before solving:
-def remaining_vertices_analysis(sizes):
+def remaining_vertices_analysis(sizes, loading_path):
     for sz, cl_sz in sizes:
         print(str(sz) + ",", cl_sz)
         key_name = 'n_' + str(sz) + '_p_' + str(PROB) + '_size_' + str(cl_sz) + ('_d' if DIRECTED else '_ud')
         head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', key_name + '_runs')
         num_runs = len(os.listdir(head_path))
-        dumping_path = os.path.join("remaining_after_model", key_name + "_runs")
+        dumping_path = os.path.join("remaining_after_model", loading_path, key_name + "_runs")
         if not os.path.exists(dumping_path):
-            os.mkdir(dumping_path)
-        if sz == 500:
-            params = PARAMS_500
-
-        elif sz == 100:
-            params = PARAMS_100
-        else:  # sz = 2000
-            params = PARAMS_2000
-        gcn = GCNCliqueDetector(sz, PROB, cl_sz, DIRECTED, features=params["features"])
-        test_scores, test_lbs, eval_scores, eval_lbs, train_scores, train_lbs, \
-            _, _, _ = gcn.single_implementation(input_params=params, check='CV')
+            os.makedirs(dumping_path)
+        res_dir = os.path.join(os.path.dirname(__file__), "model_outputs", loading_path, "{}_{}".format(sz, cl_sz))
+        train_res = pd.read_csv(os.path.join(res_dir, "train_results.csv"))
+        train_scores = train_res.scores.tolist()
+        train_lbs = train_res.labels.tolist()
+        eval_res = pd.read_csv(os.path.join(res_dir, "eval_results.csv"))
+        eval_scores = eval_res.scores.tolist()
+        eval_lbs = eval_res.labels.tolist()
+        test_res = pd.read_csv(os.path.join(res_dir, "test_results.csv"))
+        test_scores = test_res.scores.tolist()
+        test_lbs = test_res.labels.tolist()
         num_iterations = len(train_lbs + eval_lbs + test_lbs) // (num_runs * sz)
         test_scores, test_lbs, eval_scores, eval_lbs, train_scores, train_lbs = split_by_iterations(
             test_scores, test_lbs, eval_scores, eval_lbs, train_scores, train_lbs, num_iterations)
@@ -80,7 +40,7 @@ def remaining_vertices_analysis(sizes):
                 ls[it] for ls in [test_scores, test_lbs, eval_scores, eval_lbs, train_scores, train_lbs])
             graph_indices = match(key_name, num_runs, sz, train_tags, eval_tags, test_tags)
             inspect_remainders(test_ranks, test_tags, eval_ranks, eval_tags, train_ranks, train_tags,
-                               sz, cl_sz, graph_indices, key_name, it)
+                               sz, cl_sz, graph_indices, key_name, loading_path, it)
 
 
 def split_by_iterations(test_scores, test_lbs, eval_scores, eval_lbs, train_scores, train_lbs, num_iterations):
@@ -112,11 +72,13 @@ def match(key_name, num_runs, size, train_labels, eval_labels, test_labels):
 
 
 def inspect_remainders(test_scores, test_lbs, eval_scores, eval_lbs, train_scores, train_lbs,
-                       graph_size, clique_size, graph_indices, key_name, iteration):
+                       graph_size, clique_size, graph_indices, key_name, dirname, iteration):
     scores = train_scores + eval_scores + test_scores
     lbs = train_lbs + eval_lbs + test_lbs
-    head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', key_name + '_runs')
-    dumping_path = os.path.join("remaining_after_model", key_name + "_runs")
+    head_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'graph_calculations', 'pkl', key_name + '_runs')
+    if not os.path.exists(os.path.join("remaining_after_model", dirname)):
+        os.mkdir(os.path.join("remaining_after_model", dirname))
+    dumping_path = os.path.join("remaining_after_model", dirname, key_name + "_runs")
     for run in range(len(graph_indices)):
         ranks = scores[run * graph_size:(run + 1) * graph_size]
         labels = lbs[run * graph_size:(run + 1) * graph_size]
@@ -132,18 +94,12 @@ def inspect_remainders(test_scores, test_lbs, eval_scores, eval_lbs, train_score
             os.mkdir(candidate_dumping_path)
         all_df = pd.DataFrame({"score": ranks, "label": labels}, index=list(range(graph_size)))
         all_df = all_graph_measurements(total_graph, induced_subgraph).join(all_df)
-        all_df.to_csv(os.path.join(candidate_dumping_path, "all_results_iteration_%d_set_%s.csv" % (
+        all_df.to_csv(os.path.join(candidate_dumping_path, "all_results_iteration_{}_set_{}.csv".format(
             iteration, graph_indices[run][0])))
         cand_df = pd.DataFrame({"score": candidate_scores, "label": candidate_labels}, index=initial_candidates)
         cand_df = candidate_graph_measurements(total_graph, induced_subgraph, initial_candidates).join(cand_df)
-        cand_df.to_csv(os.path.join(candidate_dumping_path, "candidates_results_iteration_%d_set_%s.csv" % (
+        cand_df.to_csv(os.path.join(candidate_dumping_path, "candidates_results_iteration_{}_set_{}.csv".format(
             iteration, graph_indices[run][0])))
-        pickle.dump(total_graph, open(os.path.join(candidate_dumping_path, "all_graph_iteration_%d_set_%s.pkl" % (
-                iteration, graph_indices[run][0])), "wb"))
-        pickle.dump(
-            induced_subgraph,
-            open(os.path.join(candidate_dumping_path, "candidates_subgraph_iteration_%d_set_%s.pkl" % (
-                iteration, graph_indices[run][0])), "wb"))
 
 
 def all_graph_measurements(all_graph, candidate_graph):
@@ -205,7 +161,7 @@ def candidate_graph_measurements(all_graph, candidate_graph, initial_candidates)
 
 
 # Solutions
-def get_cliques(sizes, filename):
+def get_cliques(sizes, model_name, filename):
     # Assuming we have already applied remaining vertices analysis on the relevant graphs.
     success_rate_dict = {'Graph Size': [], 'Clique Size': [],
                          'Num. All Graphs': [], 'Num. Succeedings - All Graphs': [],
@@ -213,18 +169,20 @@ def get_cliques(sizes, filename):
     for sz, cl_sz in sizes:
         print(str(sz) + ",", cl_sz)
         key_name = 'n_' + str(sz) + '_p_' + str(PROB) + '_size_' + str(cl_sz) + ('_d' if DIRECTED else '_ud')
-        head_path = os.path.join("remaining_after_model", key_name + "_runs")
+        head_path = os.path.join("remaining_after_model", model_name, key_name + "_runs")
         num_success_total, num_trials_total, num_success_test, num_trials_test = 0, 0, 0, 0
         for dirname in os.listdir(head_path):
             dir_path = os.path.join(head_path, dirname)
-            num_iterations = len(os.listdir(dir_path)) // 4
+            run = dirname.split("_")[-1]
+            num_iterations = len(os.listdir(dir_path)) // 2  # Each iteration has a csv for all vertices and a csv of candidates.
             for it in range(num_iterations):
-                what_set = glob.glob(os.path.join(dir_path, "all_graph_iteration_%d*" % it))[0][:-4].split("_")[-1]
+                what_set = glob.glob(os.path.join(dir_path, "all_results_iteration_{}*".format(it)))[0][:-4].split("_")[-1]
                 graph = pickle.load(open(
-                    os.path.join(dir_path, "all_graph_iteration_%d_set_%s.pkl" % (it, what_set)), "rb"))
-                results_df = pd.read_csv(os.path.join(dir_path, "all_results_iteration_%d_set_%s.csv" % (it, what_set)),
+                    os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', key_name + '_runs',
+                                 "{}_run_{}".format(key_name, run), "gnx.pkl"), "rb"))
+                results_df = pd.read_csv(os.path.join(dir_path, "all_results_iteration_{}_set_{}.csv".format(it, what_set)),
                                          index_col=0)
-                algorithm_results = algorithm_version_5(graph, results_df, cl_sz)
+                algorithm_results = algorithm_version_0(graph, results_df, cl_sz)
                 num_trials_total += 1
                 if all([graph.has_edge(v1, v2) for v1, v2 in combinations(algorithm_results['Final Set'], 2)]):
                     num_success_total += 1
@@ -239,28 +197,29 @@ def get_cliques(sizes, filename):
                               [sz, cl_sz, num_trials_total, num_success_total, num_trials_test, num_success_test]):
             success_rate_dict[key].append(value)
     success_rate_df = pd.DataFrame(success_rate_dict)
-    success_rate_df.to_excel(os.path.join("remaining_after_model", filename), index=False)
+    success_rate_df.to_excel(os.path.join("remaining_after_model", model_name, filename), index=False)
 
 
-def inspect_second_phase(sizes, filename):
+def inspect_second_phase(sizes, model_name, filename):
     # Assuming we have already applied remaining vertices analysis on the relevant graphs.
     measurements_dict = {'Graph Size': [], 'Clique Size': [], 'Set': [], 'Clique Remaining Num.': [],
                          'Clique Remaining %': [], 'Num. Iterations': [], 'Success': []}
     for sz, cl_sz in sizes:
         print(str(sz) + ",", cl_sz)
         key_name = 'n_' + str(sz) + '_p_' + str(PROB) + '_size_' + str(cl_sz) + ('_d' if DIRECTED else '_ud')
-        head_path = os.path.join("remaining_after_model", key_name + "_runs")
-
+        head_path = os.path.join("remaining_after_model", model_name, key_name + "_runs")
         for dirname in os.listdir(head_path):
             dir_path = os.path.join(head_path, dirname)
-            num_iterations = len(os.listdir(dir_path)) // 4
+            run = dirname.split("_")[-1]
+            num_iterations = len(os.listdir(dir_path)) // 2  # Each iteration has a csv for all vertices and a csv of candidates.
             for it in range(num_iterations):
-                what_set = glob.glob(os.path.join(dir_path, "all_graph_iteration_%d*" % it))[0][:-4].split("_")[-1]
+                what_set = glob.glob(os.path.join(dir_path, "all_results_iteration_{}*".format(it)))[0][:-4].split("_")[-1]
                 graph = pickle.load(open(
-                    os.path.join(dir_path, "all_graph_iteration_%d_set_%s.pkl" % (it, what_set)), "rb"))
-                results_df = pd.read_csv(os.path.join(dir_path, "all_results_iteration_%d_set_%s.csv" % (it, what_set)),
+                    os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', key_name + '_runs',
+                                 "{}_run_{}".format(key_name, run), "gnx.pkl"), "rb"))
+                results_df = pd.read_csv(os.path.join(dir_path, "all_results_iteration_{}_set_{}.csv".format(it, what_set)),
                                          index_col=0)
-                algorithm_results = algorithm_version_5(graph, results_df, cl_sz)
+                algorithm_results = algorithm_version_0(graph, results_df, cl_sz)
                 success = 1 if all(
                     [graph.has_edge(v1, v2) for v1, v2 in combinations(algorithm_results['Final Set'], 2)]) else 0
                 for key, value in zip(['Graph Size', 'Clique Size', 'Set', 'Clique Remaining Num.',
@@ -271,7 +230,7 @@ def inspect_second_phase(sizes, filename):
                     measurements_dict[key].append(value)
 
     measurements_df = pd.DataFrame(measurements_dict)
-    measurements_df.to_excel(os.path.join("remaining_after_model", filename), index=False)
+    measurements_df.to_excel(os.path.join("remaining_after_model", model_name, filename), index=False)
 
 
 def algorithm_version_0(graph, results_df, cl_sz):
@@ -432,8 +391,50 @@ def algorithm_version_5(graph, results_df, cl_sz):
 # Conclusion: best is version 0, the difference between our results and DM's is in the learning phase.
 
 
+# Consistency check for the first stage
+def is_consistent(sizes, filename):
+    # Assuming we have already applied remaining vertices analysis on the relevant graphs.
+    report_dict = {'Graph Size': [], 'Clique Size': [], 'Run': [],
+                   'Set 0': [], 'Remaining 0': [], 'Set 1': [], 'Remaining 1': []}
+    for sz, cl_sz in sizes:
+        print(str(sz) + ",", cl_sz)
+        key_name = 'n_' + str(sz) + '_p_' + str(PROB) + '_size_' + str(cl_sz) + ('_d' if DIRECTED else '_ud')
+        head_path = os.path.join("remaining_after_model", key_name + "_runs")
+        for dirname in os.listdir(head_path):
+            dir_path = os.path.join(head_path, dirname)
+            report_dict['Graph Size'].append(sz)
+            report_dict['Clique Size'].append(cl_sz)
+            report_dict['Run'].append(int(dirname.split("_")[-1]))
+            num_iterations = len(os.listdir(dir_path)) // 4
+            for it in range(num_iterations):
+                what_set = glob.glob(os.path.join(dir_path, "all_graph_iteration_%d*" % it))[0][:-4].split("_")[-1]
+                candidates_df = pd.read_csv(
+                    os.path.join(dir_path, "candidates_results_iteration_%d_set_%s.csv" % (it, what_set)), index_col=0)
+                report_dict['Set ' + str(it)].append(what_set)
+                report_dict['Remaining ' + str(it)].append(int(candidates_df["label"].sum()))
+
+    report_df = pd.DataFrame(report_dict)
+    report_df.to_excel(os.path.join("remaining_after_model", filename), index=False)
+
+
+#def dm_comparison(model_name, filename):
+#    dm_df = pd.read_excel(os.path.join(os.path.dirname(os.path.dirname(__file__)), "DM_idea", "n_500_cs_10-22_dm_success_rates_v0.xlsx"))
+#    model_df = pd.read_excel(os.path.join("remaining_after_model", model_name, filename))
+#    dm_df["Success Rate %"] = dm_df.apply(lambda row: row["Num. Successes"] / row["Num. Graphs"] * 100, axis=1)
+#    model_df["Success Rate %"] = model_df.apply(lambda row: row["Num. Succeedings - Test Graphs"] / row["Num. Test Graphs"] * 100, axis=1)
+#    plt.figure()
+#    plt.plot(dm_df["Clique Size"], dm_df["Success Rate %"], "go", label="DM")
+#    plt.plot(model_df["Clique Size"], model_df["Success Rate %"], "bo", label="Our Model")
+#    plt.legend()
+#    plt.grid(True)
+#    plt.title("Clique Recovery Rate (%) per Clique Size")
+#    plt.xlabel("Clique Size")
+#    plt.ylabel("Success Rate %")
+#    plt.savefig(os.path.join("comparisons", "500_10-22_{}_vs_DM_success_rates.png".format(model_name)))
+
+
 if __name__ == '__main__':
+    file_name = "GCN_pairwise_sqk_binom_reg"
     n_cs = list(product([500], range(10, 23)))
-    # remaining_vertices_analysis(n_cs)
-    get_cliques(n_cs, "n_500_cs_10-22_success_rates_v5.xlsx")
-    inspect_second_phase(n_cs, "n_500_cs_10-22_run_analysis_v5.xlsx")
+    # remaining_vertices_analysis(n_cs, file_name)
+    get_cliques(n_cs, file_name, "500_10-22_pairwise_sqk_binom_success_rates_v0.xlsx")
