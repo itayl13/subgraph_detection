@@ -1,21 +1,15 @@
 import nni
 import logging
-import os
 import argparse
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-sys.path.append(os.path.abspath('../graph_calculations'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/graph_infra/'))
+from graph_calculations import *
 from FFN_clique_detector import ffn_clique
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 
 logger = logging.getLogger("NNI_logger")
 
 
-def run_trial(params, v, p, cs, d):
+def run_trial(params, v, pr, cs, d):
 
     # model
     hidden_layers = [int(params['hidden_0']), int(params['hidden_1'])]
@@ -33,16 +27,16 @@ def run_trial(params, v, p, cs, d):
         'class_weights': params['class_weights'],
         'non_clique_batch_rate': params['batch_rate']
     }
-    final_results = ffn_clique(v, p, cs, d, hyper_parameters=hyper_params, is_nni=True)
+    final_results = ffn_clique(v, pr, cs, d, hyper_parameters=hyper_params, is_nni=True)
     nni.report_final_result(final_results)
 
 
-def main(v, p, cs, d):
+def main(v, pr, cs, d):
     try:
         # get parameters form tuner
         params = nni.get_next_parameter()
         logger.debug(params)
-        run_trial(params, v, p, cs, d)
+        run_trial(params, v, pr, cs, d)
     except Exception as exception:
         logger.error(exception)
         raise

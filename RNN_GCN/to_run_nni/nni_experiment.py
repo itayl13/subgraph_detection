@@ -1,21 +1,9 @@
 import nni
 import logging
 from torch.optim import Adam, SGD
-import os
 import argparse
-import sys
-sys.path.append(os.path.abspath('../'))
-sys.path.append(os.path.abspath('../../graph_calculations/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_algorithms/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_algorithms/vertices/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_infra/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/graph_infra/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_processor/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_infra/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_meta/'))
-
+from RNN_GCN import *
+from graph_calculations import *
 from RNN_GCN_clique import RNNGCNClique
 
 logger = logging.getLogger("NNI_logger")

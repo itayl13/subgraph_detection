@@ -1,5 +1,4 @@
 import os
-import sys
 import numpy as np
 import pickle
 from graph_builder_for_rnngcn import GraphBuilder, FeatureCalculator
@@ -7,18 +6,6 @@ from runner import main_rnn_gcn, rnn_gcn_for_performance_test
 from sklearn.preprocessing import StandardScaler
 from torch.optim import Adam, SGD
 import torch
-
-sys.path.append(os.path.abspath('.'))
-sys.path.append(os.path.abspath('../graph_calculations/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/vertices/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/graph_infra/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_processor/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_meta/'))
 
 
 class RNNGCNClique:
@@ -34,19 +21,16 @@ class RNNGCNClique:
             'load_motifs': False
         }
         self._new_runs = new_runs
-        self._key_name = 'n_' + str(self._params["vertices"]) + '_p_' + str(
-            self._params["probability"]) + '_size_' + str(
-            self._params["clique_size"]) + ('_d' if self._params["directed"] else '_ud')
-        self._head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', self._key_name + '_runs')
+        self._key_name = f"n_{v}_p_{p}_{cs}_{'d' if d else 'ud'}"
+        self._head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', 'clique', self._key_name + '_runs')
         self._load_data()
         self._nni = nni
 
     def _load_data(self):
         graph_ids = os.listdir(self._head_path)
         if len(graph_ids) == 0 and self._new_runs == 0:
-            raise ValueError('No runs of G(%d, %s) with a clique of %d were saved, and no new runs were requested.'
-                             % (self._params['vertices'], str(self._params['probability']),
-                                self._params['clique_size']))
+            raise ValueError(f"No runs of G({self._params['vertices']}, {self._params['probability']}) "
+                             f"with a clique of {self._params['clique_size']} were saved, and no new runs were requested.")
         self._feature_matrices = []
         self._adjacency_matrices = []
         self._labels = []

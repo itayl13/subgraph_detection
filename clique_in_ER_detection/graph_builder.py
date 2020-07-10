@@ -1,16 +1,9 @@
 import networkx as nx
 import numpy as np
 import itertools
-import os
 import pickle
 import datetime
-import sys
-sys.path.append(os.path.abspath('.'))
-sys.path.append(os.path.abspath('..'))
-sys.path.append(os.path.abspath('../graph_calculations/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra'))
+from graph_calculations import *
 from features_infra.feature_calculators import FeatureMeta
 from features_algorithms.accelerated_graph_features.motifs import nth_nodes_motif, MotifsNodeCalculator
 from motif_probability_files.motif_probability import MotifProbability
@@ -141,13 +134,21 @@ class MotifCalculator:
             if type(pkl3) == dict:
                 motif3 = self._to_matrix(pkl3)
             elif type(pkl3) == MotifsNodeCalculator:
-                motif3 = np.array(pkl3._features)
+                pkl3 = pkl3._features
+                if type(pkl3) == list:
+                    motif3 = np.array(pkl3)
+                else:
+                    motif3 = self._to_matrix_(pkl3)
             else:
                 motif3 = np.array(pkl3)
             if type(pkl4) == dict:
                 motif4 = self._to_matrix(pkl4)
             elif type(pkl4) == MotifsNodeCalculator:
-                motif4 = np.array(pkl4._features)
+                pkl4 = pkl4._features
+                if type(pkl4) == list:
+                    motif4 = np.array(pkl4)
+                else:
+                    motif4 = self._to_matrix_(pkl4)
             else:
                 motif4 = np.array(pkl4)
             self._motif_mat = np.hstack((motif3, motif4))
@@ -162,6 +163,16 @@ class MotifCalculator:
     def _to_matrix(motif_features):
         rows = len(motif_features.keys())
         columns = len(motif_features[0].keys()) - 1
+        final_mat = np.zeros((rows, columns))
+        for i in range(rows):
+            for j in range(columns):
+                final_mat[i, j] = motif_features[i][j]
+        return final_mat
+
+    @staticmethod
+    def _to_matrix_(motif_features):
+        rows = len(motif_features.keys())
+        columns = len(motif_features[0])
         final_mat = np.zeros((rows, columns))
         for i in range(rows):
             for j in range(columns):

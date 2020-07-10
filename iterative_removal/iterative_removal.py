@@ -19,17 +19,16 @@ class IterativeVertexRemoval:
             'clique_size': cs,
             'directed': d,
         }
-        self._key_name = 'n_' + str(self._params["vertices"]) + '_p_' + str(self._params["probability"]) + '_size_' + \
-                         str(self._params["clique_size"]) + ('_d' if self._params["directed"] else '_ud')
-        self._head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', self._key_name + '_runs')
+        self._key_name = f"n_{v}_p_{p}_size_{cs}_{'d' if self._params['directed'] else 'ud'}"
+        self._head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', 'clique', self._key_name + '_runs')
         self._load_data()
 
     def _load_data(self):
         graph_ids = os.listdir(self._head_path)
         if len(graph_ids) == 0:
-            raise ValueError('No runs of G(%d, %s) with a clique of %d were saved, and no new runs were requested.'
-                             % (self._params['vertices'], str(self._params['probability']),
-                                self._params['clique_size']))
+            raise ValueError(f"No runs of G({self._params['vertices']}, {self._params['probability']}) "
+                             f"with a clique of {self._params['clique_size']} were saved, "
+                             f"and no new runs were requested.")
         self._graphs = []
         self._feature_dicts = []
         self._labels = []
@@ -61,18 +60,6 @@ class IterativeVertexRemoval:
 
         expected_clique_vectors = []
         thresholds = []
-        filter_choice = {0: 'projection_clique',
-                         1: 'projection_non_clique',
-                         2: 'euclidean_clique',
-                         3: 'euclidean_non_clique',
-                         4: 'projection_log_clique',
-                         5: 'projection_log_non_clique',
-                         6: 'euclidean_log_clique',
-                         7: 'euclidean_log_non_clique',
-                         8: 'sum_motifs',
-                         9: 'sum_residual_motifs',
-                         10: 'clustering_coefficient'
-                         }
 
         remaining_vertices_count = [len(filtered_graphs[0])] * len(filtered_graphs)
         iterations = 1
@@ -129,7 +116,7 @@ class IterativeVertexRemoval:
             projections = filtering_criterion.criterion()
             new_vertices = [[v for v in filtered_graphs[g].nodes() if projections[g][v] > thresholds[iteration]]
                             for g in range(len(filtered_graphs))]
-            print("Iteration %d" % (iteration + 1))
+            print(f"Iteration {iteration + 1}")
             print("Remaining Vertices: ", [len(ls) for ls in new_vertices])
             print("Remaining clique vertices: ", [sum([self._training_labels[g][v] for v in new_vertices[g]])
                                                   for g in range(len(new_vertices))])
@@ -143,7 +130,7 @@ class IterativeVertexRemoval:
         for g in range(len(filtered_graphs)):
             clique_vertices = sum([self._test_labels[g][v] for v in filtered_graphs[g]])
             non_clique_vertices = sum([0 if self._test_labels[g][v] else 1 for v in filtered_graphs[g]])
-            print("Graph %d: %d clique vertices, %d non-clique vertices" % (g + 1, clique_vertices, non_clique_vertices))
+            print(f"Graph {g+1}: {clique_vertices} clique vertices, {non_clique_vertices} non-clique vertices")
         return filtered_graphs
 
     @staticmethod
@@ -209,7 +196,7 @@ class IterativeVertexRemoval:
         em = MotifProbability(self._params['vertices'], edge_prob, self._params['clique_size'], self._params['directed'])
         expected_clique_vector = [em.motif_expected_clique_vertex(i) for i in range(em.get_3_clique_motifs(3)[-1]+1)]
         angles = [{v: self.cos_angle(np.array(self._feature_dicts[g][v]), np.array(expected_clique_vector))
-                        for v in self._graphs[g].nodes()} for g in range(len(self._graphs))]
+                   for v in self._graphs[g].nodes()} for g in range(len(self._graphs))]
         for i in range(len(self._feature_dicts)):
             for v in self._feature_dicts[i].keys():
                 if self._labels[i][v]:

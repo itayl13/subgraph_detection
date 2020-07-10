@@ -17,8 +17,8 @@ class RNNGCN(Module):
     @staticmethod
     def adj_to_coo(adj):
         coo_a = coo_matrix(adj.cpu().numpy())
-        edges_tensor = np.vstack((coo_a.row, coo_a.col))
-        return torch.LongTensor(edges_tensor.astype(float)).to(adj.device)
+        edges_tensor = np.vstack((coo_a.row, coo_a.col)).astype(float)
+        return torch.tensor(edges_tensor, dtype=torch.long, device=adj.device)
 
     def forward(self, x, adj):
         adj = self.adj_to_coo(adj)

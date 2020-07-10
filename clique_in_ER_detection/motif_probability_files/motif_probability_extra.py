@@ -18,7 +18,7 @@ class MotifCalculatorByCliqueVertices:
         self._calculate()
 
     def _load_variations_file(self):
-        fname = "%d_%sdirected.pkl" % (self._level, "" if self._gnx.is_directed() else "un")
+        fname = f"{self._level}_{'' if self._gnx.is_directed() else 'un'}directed.pkl"
         fpath = os.path.join(BASE_PATH, "graph_measures", "features_algorithms", "motif_variations", fname)
         return pickle.load(open(fpath, "rb"))
 

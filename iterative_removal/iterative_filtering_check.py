@@ -5,14 +5,13 @@ after one iteration of filtering using each criterion and a threshold throwing 1
 of the clique away.
 """
 
-import os
 import pickle
 import numpy as np
 from scipy.special import comb
 import torch
-import matplotlib.pyplot as plt
-import datetime
 import itertools
+from iterative_removal import *
+from graph_calculations import *
 from graph_motif_calculator import GraphMotifCalculator
 from expected_motif_values import MotifProbability
 from criteria import FiltrationCriteria
@@ -26,17 +25,16 @@ class IterativeVertexRemoval:
             'clique_size': cs,
             'directed': d,
         }
-        self._key_name = 'n_' + str(self._params["vertices"]) + '_p_' + str(self._params["probability"]) + '_size_' + \
-                         str(self._params["clique_size"]) + ('_d' if self._params["directed"] else '_ud')
-        self._head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', self._key_name + '_runs')
+        self._key_name = f"n_{v}_p_{p}_size_{cs}_{'d' if d else 'ud'}"
+        self._head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', 'clique', self._key_name + '_runs')
         self._load_data()
 
     def _load_data(self):
         graph_ids = os.listdir(self._head_path)
         if len(graph_ids) == 0:
-            raise ValueError('No runs of G(%d, %s) with a clique of %d were saved, and no new runs were requested.'
-                             % (self._params['vertices'], str(self._params['probability']),
-                                self._params['clique_size']))
+            raise ValueError(f"No runs of G({self._params['vertices']}, {self._params['probability']}) "
+                             f"with a clique of size {self._params['clique_size']} were saved, "
+                             f"and no new runs were requested.")
         self._graphs = []
         self._feature_dicts = []
         self._labels = []
@@ -53,14 +51,14 @@ class IterativeVertexRemoval:
             feature_dict = fc.feature_dict
             self._feature_dicts.append(feature_dict)
         test_graph_idx = np.random.choice(a=len(graph_ids), size=round(len(graph_ids) / 2), replace=False)
-        train_graphs_idx = np.array([i for i in range(len(graph_ids)) if i not in test_graph_idx])
-        self._test_features = [self._feature_dicts[i] for i in test_graph_idx]
-        self._test_graphs = [self._graphs[i] for i in test_graph_idx]
-        self._test_labels = [self._labels[i] for i in test_graph_idx]
+        train_graphs_idx = np.array([idx for idx in range(len(graph_ids)) if idx not in test_graph_idx])
+        self._test_features = [self._feature_dicts[idx] for idx in test_graph_idx]
+        self._test_graphs = [self._graphs[idx] for idx in test_graph_idx]
+        self._test_labels = [self._labels[idx] for idx in test_graph_idx]
 
-        self._training_features = [self._feature_dicts[i] for i in train_graphs_idx]
-        self._training_graphs = [self._graphs[i] for i in train_graphs_idx]
-        self._training_labels = [self._labels[i] for i in train_graphs_idx]
+        self._training_features = [self._feature_dicts[idx] for idx in train_graphs_idx]
+        self._training_graphs = [self._graphs[idx] for idx in train_graphs_idx]
+        self._training_labels = [self._labels[idx] for idx in train_graphs_idx]
 
     def filter_iteratively(self):
         filtered_graphs = self._training_graphs.copy()
@@ -180,17 +178,12 @@ if __name__ == "__main__":
             remaining_clique_by_criterion_test[i] += remaining_tc[i]
 
     for criterion_ in criteria_dict.keys():
-        print("Criterion: %s \n Training Mean Remaining Vertices: %3.4f \t\t Train Std Remaining Vertices: %3.4f \n "
-              "Training Mean Clique Vertices: %3.4f \t\t Training Std Clique Vertices: %3.4f \n "
-              "Test Mean Remaining Vertices: %3.4f \t\t Test Std Remaining Vertices: %3.4f \n "
-              "Test Mean Clique Vertices: %3.4f \t\t Test Std Clique Vertices: %3.4f \n " %
-              (criteria_dict[criterion_],
-               float(np.mean(remaining_by_criterion_train[criterion_])),
-               float(np.std(remaining_by_criterion_train[criterion_])),
-               float(np.mean(remaining_clique_by_criterion_train[criterion_])),
-               float(np.std(remaining_clique_by_criterion_train[criterion_])),
-               float(np.mean(remaining_by_criterion_test[criterion_])),
-               float(np.std(remaining_by_criterion_test[criterion_])),
-               float(np.mean(remaining_clique_by_criterion_test[criterion_])),
-               float(np.std(remaining_clique_by_criterion_test[criterion_])),
-               ))
+        print(f"Criterion: {criteria_dict[criterion_]} \n "
+              f"Training Mean Remaining Vertices: {np.mean(remaining_by_criterion_train[criterion_]):.4f} \t\t "
+              f"Train Std Remaining Vertices: {np.std(remaining_by_criterion_train[criterion_]):.4f} \n "
+              f"Training Mean Clique Vertices: {np.mean(remaining_clique_by_criterion_train[criterion_]):.4f} \t\t "
+              f"Training Std Clique Vertices: {np.std(remaining_clique_by_criterion_train[criterion_]):.4f} \n "
+              f"Test Mean Remaining Vertices: {np.mean(remaining_by_criterion_test[criterion_]):.4f} \t\t "
+              f"Test Std Remaining Vertices: {np.std(remaining_by_criterion_test[criterion_]):.4f} \n "
+              f"Test Mean Clique Vertices: {np.mean(remaining_clique_by_criterion_test[criterion_]):.4f} \t\t "
+              f"Test Std Clique Vertices: {np.std(remaining_clique_by_criterion_test[criterion_]):.4f} \n ")

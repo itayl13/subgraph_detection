@@ -21,12 +21,12 @@ class MotifProbability:
         self._labels = {}
 
     def _build_variations(self):
-        name3 = "3_%sdirected.pkl" % ("" if self._is_directed else "un")
+        name3 = f"3_{'' if self._is_directed else 'un'}directed.pkl"
         variations_path = os.path.join(os.path.dirname(os.path.dirname(__file__)),
                                        '..', 'graph_calculations', 'graph_measures', 'features_algorithms', 'motif_variations')
         path3 = os.path.join(variations_path, name3)
         self._motif3_variations = pickle.load(open(path3, "rb"))
-        name4 = "4_%sdirected.pkl" % ("" if self._is_directed else "un")
+        name4 = f"4_{'' if self._is_directed else 'un'}directed.pkl"
         path4 = os.path.join(variations_path, name4)
         self._motif4_variations = pickle.load(open(path4, "rb"))
 
@@ -325,5 +325,5 @@ if __name__ == "__main__":
     # for motif in mp.get_3_clique_motifs(3) + mp.get_3_clique_motifs(4):
     #     print("Non clique: %s , Clique: %s" %
     #           (mp.motif_expected_non_clique_vertex(motif), mp.motif_expected_clique_vertex(motif)))
-        # mp.check_second_probability(motif)
+    #     mp.check_second_probability(motif)
     mp.prob_i_clique_verts_check(dir_path=os.path.join('pkl', 'n_200_p_0.5_size_10_d'))

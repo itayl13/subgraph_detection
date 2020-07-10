@@ -1,8 +1,6 @@
 import numpy as np
 import pickle
 import os
-from sklearn.mixture import GaussianMixture
-from sklearn.svm import OneClassSVM
 
 
 class DetectClique:
@@ -19,7 +17,7 @@ class DetectClique:
         self._expected_clique = pickle.load(open(os.path.join(self._dir_path, 'expected_clique.pkl'), 'rb'))
         self._expected_non_clique = pickle.load(open(os.path.join(self._dir_path, 'expected_non_clique.pkl'), 'rb'))
 
-    def irregular_vertices(self, method='dist', to_scale=True):
+    def irregular_vertices(self, to_scale=True):
         motif_matrix = self._motif_matrix.copy().astype(float)
         expected_clique = self._expected_clique.copy()
         expected_non_clique = self._expected_non_clique.copy()

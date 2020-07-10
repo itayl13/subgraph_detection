@@ -19,18 +19,16 @@ class Alon:
             'clique_size': cs,
             'directed': d,
         }
-        self._key_name = 'n_' + str(self._params["vertices"]) + '_p_' + str(self._params["probability"]) + '_size_' + \
-                         str(self._params["clique_size"]) + ('_d' if self._params["directed"] else '_ud')
-        self._head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl',
+        self._key_name = f"n_{v}_p_{p}_size_{cs}_{'d' if d else 'ud'}"
+        self._head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', 'clique',
                                        self._key_name + '_runs')
         self._load_data()
 
     def _load_data(self):
         graph_ids = os.listdir(self._head_path)
         if len(graph_ids) == 0:
-            raise ValueError('No runs of G(%d, %s) with a clique of %d were saved, and no new runs were requested.'
-                             % (self._params['vertices'], str(self._params['probability']),
-                                self._params['clique_size']))
+            raise ValueError(f"No runs of G({self._params['vertices']}, {self._params['probability']}) "
+                             f"with a clique of size {self._params['clique_size']} were saved.")
         self._graphs = []
         self._labels = []
         for run in range(len(graph_ids)):
@@ -62,8 +60,8 @@ class Alon:
         first_subset = indices_order[-self._params['clique_size']:]
         q = [v for v in range(len(labels)) if self._check_neighbors_a(v, first_subset, graph)]
 
-        print('After the first stage, %d clique vertices out of %d vertices are left' %
-              (len([v for v in q if labels[v]]), len(q)))
+        print(f"After the first stage, {len([v for v in q if labels[v]])} clique vertices "
+              f"out of {len(q)} vertices are left")
         return q
 
     def _check_neighbors_a(self, v, w, graph):
@@ -83,12 +81,12 @@ class Alon:
             q_s = self._algorithm_a(induced_subgraph, induced_labels)
             if self._check_clique(graph, q_s + list(subset)):
                 output_subset = q_s + list(subset)
-                print('After the second stage, %d clique vertices out of %d vertices are left' %
-                      (len([v for v in output_subset if labels[v]]), len(output_subset)))
+                print(f"After the second stage, {len([v for v in output_subset if labels[v]])} clique vertices "
+                      f"out of {len(output_subset)} vertices are left")
                 return [1 if v in output_subset else 0 for v in range(len(labels))]
         arbitrary_subset = np.random.choice(len(labels), self._params['clique_size'], replace=False)
-        print('After the second stage, %d clique vertices out of %d vertices are left' %
-              (len([v for v in arbitrary_subset if labels[v]]), len(arbitrary_subset)))
+        print(f"After the second stage, {len([v for v in arbitrary_subset if labels[v]])} clique vertices "
+              f"out of {len(arbitrary_subset)} vertices are left")
         return [1 if v in arbitrary_subset else 0 for v in range(len(labels))]
 
     @staticmethod
@@ -99,7 +97,7 @@ class Alon:
 
     @staticmethod
     def _check_clique(graph, subset):
-        return
+        return all([graph.has_edge(v1, v2) for v1, v2 in combinations(subset, 2)])
 
 
 def performance_test_alon():

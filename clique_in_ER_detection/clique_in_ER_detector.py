@@ -1,18 +1,10 @@
 from graph_builder import GraphBuilder, MotifCalculator
 from detect_clique import DetectClique
 import os
-import sys
-sys.path.append(os.path.abspath('.'))
-sys.path.append(os.path.abspath('graph_calculations'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/features_infra/'))
-sys.path.append(os.path.abspath('graph_calculations/graph_measures/graph_infra/'))
 
 
 class CliqueInERDetector:
-    def __init__(self, v, p, cs, d):
+    def __init__(self, v, p, cs, d, num_run=0):
         self._params = {
             'vertices': v,
             'probability': p,
@@ -22,10 +14,9 @@ class CliqueInERDetector:
             'load_labels': False,
             'load_motifs': False
         }
-        self._dir_path = os.path.join('graph_calculations', 'pkl',
-                                      'n_' + str(self._params["vertices"]) + '_p_' +
-                                      str(self._params["probability"]) + '_size_' + str(self._params["clique_size"]) +
-                                      ('_d' if self._params["directed"] else '_ud'))
+        self._key_name = f"n_{v}_p_{p}_size_{cs}_{'d' if d else 'ud'})"
+        self._dir_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl',
+                                      self._key_name + '_runs', self._key_name + "_run_" + str(num_run))
         self._data = GraphBuilder(self._params, self._dir_path)
         self._graph = self._data.graph()
         self._labels = self._data.labels()
@@ -36,7 +27,7 @@ class CliqueInERDetector:
     def detect_clique(self):
         detector = DetectClique(graph=self._graph, matrix=self._motif_matrix, labels=self._labels,
                                 dir_path=self._dir_path)
-        suspected_vertices = detector.irregular_vertices(method='svm', to_scale=False)
+        suspected_vertices = detector.irregular_vertices(to_scale=False)
         vertex_label = [(v, self._labels[v]) for v in suspected_vertices]
         print(vertex_label)
 

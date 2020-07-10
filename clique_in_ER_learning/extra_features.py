@@ -1,9 +1,9 @@
 import os
 import numpy as np
 from operator import itemgetter
-from clique_in_ER_learning.graph_builder import GraphBuilder
-from motif_probability_ import MotifProbability
 from sklearn.linear_model import LinearRegression
+from graph_builder import GraphBuilder
+from motif_probability import MotifProbability
 
 
 # This class is intended to calculate all the features we used in the detection trials.

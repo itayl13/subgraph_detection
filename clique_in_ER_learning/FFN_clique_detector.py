@@ -9,14 +9,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, roc_curve
-try:
-    from clique_in_ER_learning.graph_builder import GraphBuilder, MotifCalculator
-    from clique_in_ER_learning.extra_features import ExtraFeatures
-    from clique_in_ER_learning.ffn_model import FFNClique
-except ModuleNotFoundError:
-    from graph_builder import GraphBuilder, MotifCalculator
-    from extra_features import ExtraFeatures
-    from ffn_model import FFNClique
+from graph_builder import GraphBuilder, MotifCalculator
+from extra_features import ExtraFeatures
+from ffn_model import FFNClique
 
 
 class FFNCliqueDetector:
@@ -37,7 +32,7 @@ class FFNCliqueDetector:
         self._key_name = 'n_' + str(self._params["vertices"]) + '_p_' + str(
             self._params["probability"]) + '_size_' + str(
             self._params["clique_size"]) + ('_d' if self._params["directed"] else '_ud')
-        self._head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl',
+        self._head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', 'clique',
                                        self._key_name + '_runs')
         self._load_data(check)
 
@@ -46,9 +41,9 @@ class FFNCliqueDetector:
 
         if len(graph_ids) == 0:
             if self._num_runs == 0:
-                raise ValueError('No runs of G(%d, %s) with a clique of %d were saved, and no new runs were requested.'
-                                 % (self._params['vertices'], str(self._params['probability']),
-                                    self._params['clique_size']))
+                raise ValueError(f"No runs of G({self._params['vertices']}, {self._params['probability']}) "
+                                 f"with a clique of size {self._params['clique_size']} were saved, "
+                                 f"and no new runs were requested.")
         self._feature_matrices = []
         self._labels = []
         motifs_picked = []
@@ -104,13 +99,13 @@ class FFNCliqueDetector:
         weights_list = []
         for i in range(labels.shape[0]):
             weights_list.append([class_weights[int(labels[i])]])
-        weights_tensor = torch.FloatTensor(weights_list).to(self._device)
+        weights_tensor = torch.tensor(weights_list, dtype=torch.float, device=self._device)
         return torch.nn.BCELoss(weight=weights_tensor).to(self._device)
 
     def predict(self, model, test_data):
         model.eval()
         inputs = torch.from_numpy(test_data)
-        inputs = inputs.type(torch.FloatTensor).to(self._device)
+        inputs = inputs.to(dtype=torch.float, device=self._device)
         outputs = model(inputs)
         return outputs.data.cpu().numpy()
 
@@ -129,9 +124,9 @@ class FFNCliqueDetector:
             shuffled_train_labels = train_labels[row_ind_permutation, :]
             train_loss = self._build_weighted_loss(class_weights, shuffled_train_labels)
             inputs = torch.from_numpy(shuffled_train_data)
-            inputs = inputs.type(torch.FloatTensor).to(self._device)
+            inputs = inputs.to(dtype=torch.float, device=self._device)
             targets = torch.from_numpy(shuffled_train_labels)
-            targets = targets.type(torch.FloatTensor).to(self._device)
+            targets = targets.to(dtype=torch.float, device=self._device)
             model.train()
             optimizer.zero_grad()
             outputs = model(inputs)
@@ -351,18 +346,18 @@ def ffn_clique_for_plot(v, p, cs, d, hyper_parameters=None, num_runs=0, is_nni=F
         network = FFNCliqueDetector(v, p, cs, d, hyper_parameters, num_runs, is_nni)
         train_roc_fpr, train_roc_tpr, train_auc, test_roc_fpr, test_roc_tpr, test_auc = network.ffn_clique_for_plot()
         plt.figure(0)
-        plt.plot(train_roc_fpr, train_roc_tpr, label="%3.4f" % train_auc)
+        plt.plot(train_roc_fpr, train_roc_tpr, label=f"{train_auc:.4f}")
         auc_train.append(train_auc)
         plt.figure(1)
-        plt.plot(test_roc_fpr, test_roc_tpr, label="%3.4f" % test_auc)
+        plt.plot(test_roc_fpr, test_roc_tpr, label=f"{test_auc:.4f}")
         auc_test.append(test_auc)
     plt.figure(0)
     plt.legend()
-    plt.title('FFN on G(%d, %.1f, %d), train AUC = %3.4f' % (v, p, cs, float(np.mean(auc_train))))
+    plt.title(f"FFN on G({v}, {p:.1f}, {cs}), train AUC = {np.mean(auc_train):.4f}")
     plt.savefig('train_roc.png')
     plt.figure(1)
     plt.legend()
-    plt.title('FFN on G(%d, %.1f, %d), test AUC = %3.4f' % (v, p, cs, float(np.mean(auc_test))))
+    plt.title(f"FFN on G({v}, {p:.1f}, {cs}), test AUC = {np.mean(auc_test):.4f}")
     plt.savefig('test_roc.png')
     print('Mean Train AUC: ', np.mean(auc_train))
     print('Mean Test AUC: ', np.mean(auc_test))
@@ -372,8 +367,8 @@ def ffn_clique_for_plot(v, p, cs, d, hyper_parameters=None, num_runs=0, is_nni=F
 def ffn_clique_for_performance_test(v, p, cs, d, hyper_parameters=None, check='CV'):
     all_test_scores, all_test_labels, all_train_scores, all_train_labels = [], [], [], []
     if check == 'CV':  # Cross-Validation
-        key_name = 'n_' + str(v) + '_p_' + str(p) + '_size_' + str(cs) + ('_d' if d else '_ud')
-        head_path = os.path.join('graph_calculations', 'pkl', key_name + '_runs')
+        key_name = f"n_{v}_p_{p}_size_{cs}_{'d' if d else 'ud'}"
+        head_path = os.path.join('graph_calculations', 'pkl', 'clique', key_name + '_runs')
         graph_ids = os.listdir(head_path)
         for run in range(len(graph_ids)):
             network = FFNCliqueDetector(v=v, p=p, cs=cs, d=d, hyper_parameters=hyper_parameters, is_nni=False, check=run)

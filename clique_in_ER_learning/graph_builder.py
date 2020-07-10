@@ -1,19 +1,13 @@
 import networkx as nx
 import numpy as np
 import itertools
-import os
-import sys
 import pickle
 import datetime
-sys.path.append(os.path.abspath('../graph_calculations'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra/'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/graph_infra/'))
+from clique_in_ER_learning import *
+from graph_calculations import *
 from feature_calculators import FeatureMeta
 from accelerated_graph_features.motifs import nth_nodes_motif, MotifsNodeCalculator
-from motif_probability_ import MotifProbability
+from motif_probability import MotifProbability
 from graph_features import GraphFeatures
 
 

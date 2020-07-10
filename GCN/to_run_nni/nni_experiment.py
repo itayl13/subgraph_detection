@@ -1,22 +1,12 @@
 import nni
 import logging
 from torch.optim import Adam, SGD
-import os
+from torch.nn.functional import relu, tanh
 import argparse
-import sys
-sys.path.append(os.path.abspath('../'))
-sys.path.append(os.path.abspath('../../graph_calculations/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_algorithms/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_algorithms/vertices/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_infra/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/graph_infra/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_processor/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_infra/'))
-sys.path.append(os.path.abspath('../../graph_calculations/graph_measures/features_meta/'))
 
-from GCN_clique_detector import GCNCliqueDetector
+from GCN import *
+from graph_calculations import *
+from GCN_subgraph_detector import GCNCliqueDetector
 
 logger = logging.getLogger("NNI_logger")
 
@@ -26,22 +16,21 @@ def run_trial(params, v, p, cs, d):
 
     # model
     hidden_layers = [params["h1_dim"], params["h2_dim"], params["h3_dim"], params["h4_dim"]]
-    # layer_count = int(params["layers_config"]["_name"].split("_")[0])
-    # for hidden_layer in range(layer_count):
-    #     hidden_layers.append(params["layers_config"]["h" + str(hidden_layer + 1) + "_dim"])
     dropout = params["dropout"]
     reg_term = params["regularization"]
     lr = params["learning_rate"]
-    optimizer = Adam
-    epochs = int(params["epochs"])
+    optimizer = Adam if params["optimizer"] == "Adam" else SGD
+    activation = relu if params["activation"] == "ReLU" else tanh
+    # epochs = int(params["epochs"])
     input_params = {
         "hidden_layers": hidden_layers,
-        "epochs": epochs,
+        "epochs": 1000,
         "dropout": dropout,
         "lr": lr,
         "regularization": reg_term,
-        "rerun": True,
-        "optimizer": optimizer
+        "early_stop": True,
+        "optimizer": optimizer,
+        "activation": activation
     }
     model = GCNCliqueDetector(v, p, cs, d, features=features, nni=True)
     model.train(input_params)

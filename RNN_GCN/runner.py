@@ -6,11 +6,13 @@ import torch
 import torch.optim as optim
 import nni
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from RNN_GCN import *
+from graph_calculations import *
 from rnn_model import RNNGCN
-from graph_measures.loggers import PrintLogger, multi_logger, EmptyLogger, CSVLogger, FileLogger
+from loggers import PrintLogger, multi_logger, EmptyLogger, CSVLogger, FileLogger
 from sklearn.metrics import roc_auc_score, roc_curve
+matplotlib.use('Agg')
 
 
 class ModelRunner:
@@ -30,7 +32,7 @@ class ModelRunner:
         weights_list = []
         for i in range(labels.shape[0]):
             weights_list.append(self._weights_dict[labels[i].data.item()])
-        weights_tensor = torch.DoubleTensor(weights_list).to(self._device)
+        weights_tensor = torch.tensor(weights_list, dtype=torch.double, device=self._device)
         self._criterion = torch.nn.BCELoss(weight=weights_tensor).to(self._device)
 
     @property
@@ -50,8 +52,8 @@ class ModelRunner:
         opt = self._conf["optimizer"](model.parameters(), lr=self._conf["lr"], weight_decay=self._conf["weight_decay"])
         if self._is_nni:
             self._logger.debug(
-                'Model: \nlearning rate: %3.4f \nL2 regularization: %3.4f \n class weights: %s' %
-                (self._conf["lr"], self._conf["weight_decay"], str(self._weights_dict)))
+                f"Model: \nlearning rate: {self._conf['lr']:.4f} \nL2 regularization: {self._conf['weight_decay']:.4f} \n "
+                f"class weights: {self._weights_dict}")
         return {"model": model, "optimizer": opt,
                 "training_mats": self._conf["training_mat"],
                 "training_adjs": self._conf["training_adj"],
@@ -74,18 +76,14 @@ class ModelRunner:
         result["train_output_labels"] = train_output_labels
         result["auc_train"] = final_train_auc
         if self._is_nni:
-            self._logger.debug('Final loss train: %3.4f' % final_loss_train)
-            self._logger.debug('Final AUC train: %3.4f' % final_train_auc)
+            self._logger.debug(f'Final loss train: {final_loss_train:.4f}')
+            self._logger.debug(f'Final AUC train: {final_train_auc:.4f}')
             final_results = result["auc"]
-            self._logger.debug('Final AUC test: %3.4f' % final_results)
+            self._logger.debug(f'Final AUC test: {final_results:.4f}')
             # _nni.report_final_result(test_auc)
 
         if verbose != 0:
-            names = ""
-            vals = ()
             for name, val in result.items():
-                names = names + name + ": %3.4f  "
-                vals = vals + tuple([val])
                 self._data_logger.info(name, val)
         return intermediate_results, result
 
@@ -116,7 +114,7 @@ class ModelRunner:
         for i, idx in enumerate(graphs_order):
             training_mat = torch.from_numpy(model["training_mats"][idx]).to(device=self._device, dtype=torch.float)
             training_adj = torch.from_numpy(model["training_adjs"][idx]).to(device=self._device)
-            labels = torch.DoubleTensor(model["training_labels"][idx]).to(self._device)
+            labels = torch.tensor(model["training_labels"][idx], dtype=torch.double, device=self._device)
             model_.train()
             optimizer.zero_grad()
             output = model_(*[training_mat, training_adj])
@@ -150,7 +148,7 @@ class ModelRunner:
         for i, idx in enumerate(graphs_order):
             test_mat = torch.from_numpy(model["test_mats"][idx]).to(device=self._device, dtype=torch.float)
             test_adj = torch.from_numpy(model["test_adjs"][idx]).to(device=self._device)
-            test_labels = torch.DoubleTensor(model["test_labels"][idx]).to(self._device)
+            test_labels = torch.tensor(model["test_labels"][idx], dtype=torch.double, device=self._device)
             model_.eval()
             output = model_(*[test_mat, test_adj])
             outputs.append(output)
@@ -165,8 +163,7 @@ class ModelRunner:
         positives = [ranked_vertices[-(i+1)] for i in range(self._clique_size)]
         true_positives = [i for i in positives if lb.tolist()[i] > 0.5]
         if verbose != 0:
-            self._logger.info("Test: loss= {:.4f} ".format(loss_test.data.item()) +
-                              "auc= {:.4f}".format(auc_test))
+            self._logger.info(f"Test: loss= {loss_test.data.item():.4f} auc= {auc_test:.4f}")
         result = {"loss": loss_test.data.item(), "auc": auc_test,
                   "true_positives": len(true_positives),
                   "output_labels": np.vstack((out.tolist(), lb.tolist()))}
@@ -218,7 +215,7 @@ def execute_runner(runners, is_nni=False):
             fpr, tpr, _ = roc_curve(labels_train, ranks_train)
             auc_tr = roc_auc_score(labels_train, ranks_train)
             auc_train.append(auc_tr)
-            plt.plot(fpr, tpr, label='%3.4f' % auc_tr)
+            plt.plot(fpr, tpr, label=f'{auc_tr:.4f}')
             plt.figure(1)
             ranks_labels_test = res_dict["output_labels"]
             ranks_test = list(ranks_labels_test[0, :])
@@ -226,26 +223,26 @@ def execute_runner(runners, is_nni=False):
             tst_fpr, tst_tpr, _ = roc_curve(labels_test, ranks_test)
             auc_ts = roc_auc_score(labels_test, ranks_test)
             auc_test.append(auc_ts)
-            plt.plot(tst_fpr, tst_tpr, label='%3.4f' % auc_ts)
+            plt.plot(tst_fpr, tst_tpr, label=f'{auc_ts:.4f}')
         del res_dict['output_labels']
         del res_dict['train_output_labels']
     if not is_nni:
         plt.figure(0)
-        plt.title('GCN on G(%d, %.1f, %d), train AUC = %3.4f' %
-                  (runners[-1].graph_params['vertices'], runners[-1].graph_params['probability'],
-                   runners[-1].graph_params['clique_size'], float(np.mean(auc_train))))
+        plt.title(f"GCN on G({runners[-1].graph_params['vertices']}"
+                  f", {runners[-1].graph_params['probability']:.1f}, {runners[-1].graph_params['clique_size']}), "
+                  f"train AUC = {np.mean(auc_train):.4f}")
         plt.legend()
         plt.savefig(os.path.join('roc_curves', 'roc_train.png'))
         plt.figure(1)
-        plt.title('GCN on G(%d, %.1f, %d), test AUC = %3.4f' %
-                  (runners[-1].graph_params['vertices'], runners[-1].graph_params['probability'],
-                   runners[-1].graph_params['clique_size'], float(np.mean(auc_test))))
+        plt.title(f"GCN on G({runners[-1].graph_params['vertices']}"
+                  f", {runners[-1].graph_params['probability']:.1f}, {runners[-1].graph_params['clique_size']}), "
+                  f"test AUC = {np.mean(auc_test):.4f}")
         plt.legend()
         plt.savefig(os.path.join('roc_curves', 'roc_test.png'))
     auc_final_results = np.mean([result_dict['auc'] for result_dict in final_results])
     auc_train_results = np.mean([result_dict['auc_train'] for result_dict in final_results])
-    runners[-1].logger.info("*"*15 + "Final AUC train: %3.4f" % auc_train_results)
-    runners[-1].logger.info("*"*15 + "Final AUC test: %3.4f" % auc_final_results)
+    runners[-1].logger.info("*"*15 + f"Final AUC train: {auc_train_results:.4f}")
+    runners[-1].logger.info("*"*15 + f"Final AUC test: {auc_final_results:.4f}")
 
     if is_nni:
         mean_intermediate_res = np.mean(intermediate_results, axis=0)
@@ -256,8 +253,8 @@ def execute_runner(runners, is_nni=False):
     result = {}
     for name, vals in aggregated.items():
         result[name] = np.mean(vals)
-        runners[-1].logger.info("*"*15 + "mean %s: %3.4f" % (name, float(np.mean(vals))))
-        runners[-1].logger.info("*"*15 + "std %s: %3.4f" % (name, float(np.std(vals))))
+        runners[-1].logger.info("*"*15 + f"mean {name}: {np.mean(vals):.4f}%3.4f")
+        runners[-1].logger.info("*"*15 + f"std {name}: {np.std(vals):.4f}")
         runners[-1].logger.info("Finished")
     return result
 
@@ -275,9 +272,9 @@ def build_model(training_data, training_adj, training_labels, test_data, test_ad
 
     logger = multi_logger([
         PrintLogger("MyLogger", level=logging.DEBUG),
-        FileLogger("results_%s" % dumping_name, path=products_path, level=logging.INFO)], name=None)
+        FileLogger("results_" + dumping_name, path=products_path, level=logging.INFO)], name=None)
 
-    data_logger = CSVLogger("results_%s" % dumping_name, path=products_path)
+    data_logger = CSVLogger("results_" + dumping_name, path=products_path)
     data_logger.info("model_name", "loss", "acc", "auc")
 
     runner = ModelRunner(conf, logger=logger, data_logger=data_logger, weights=class_weights, graph_params=graph_params,
@@ -286,7 +283,7 @@ def build_model(training_data, training_adj, training_labels, test_data, test_ad
 
 
 def main_rnn_gcn(feature_matrices, adj_matrices, labels, graph_params, recurrent_cycles, optimizer=optim.Adam, epochs=200,
-             lr=0.01, l2_pen=0.005, iterations=3, dumping_name='', class_weights=None, is_nni=False):
+                 lr=0.01, l2_pen=0.005, iterations=3, dumping_name='', class_weights=None, is_nni=False):
 
     runners = []
     for it in range(iterations):
@@ -335,8 +332,8 @@ def execute_runner_for_performance(runners):
 
 
 def rnn_gcn_for_performance_test(feature_matrices, adj_matrices, labels, graph_params, recurrent_cycles,
-                             optimizer=optim.Adam, epochs=200, lr=0.01, l2_pen=0.005, iterations=3,
-                             dumping_name='', class_weights=None, check='split'):
+                                 optimizer=optim.Adam, epochs=200, lr=0.01, l2_pen=0.005, iterations=3,
+                                 dumping_name='', class_weights=None, check='split'):
     runners = []
     if check == 'split':
         for it in range(iterations):

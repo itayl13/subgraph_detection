@@ -6,18 +6,19 @@ from sklearn.linear_model import LinearRegression
 from scipy.special import comb
 
 
-# This class is intended to calculate all the features we used in the detection trials.
+# This class is intended to calculate all the additional features we used in the detection trials, for cliques only.
 class AdditionalFeatures:
     def __init__(self, params, gnx, dir_path, matrix, motifs=None):
         self._params = params
         self._dir_path = dir_path
         self._matrix = matrix
         self._gnx = gnx
+        assert params["subgraph"] == "clique", "This class is for cliques only"
         self._load_other_things(motifs)
 
     def _load_other_things(self, motifs):
         self._mp = MotifProbability(self._params['vertices'], self._params['probability'],
-                                    self._params['clique_size'], self._params['directed'])
+                                    self._params['subgraph_size'], self._params['directed'])
         if motifs is None:
             self._clique_motifs = self._mp.get_3_clique_motifs(3) + self._mp.get_3_clique_motifs(4)
         else:
@@ -38,7 +39,7 @@ class AdditionalFeatures:
                     2 * self._params['probability'] * (self._params['vertices'] - 1))
                                                               ) + reg.intercept_))
             res_expected_c.append(expected_clique[motif] - ((reg.coef_[0] * (
-                    2 * self._params['probability'] * (self._params['vertices'] - 1) + self._params['clique_size'] - 1)
+                    2 * self._params['probability'] * (self._params['vertices'] - 1) + self._params['subgraph_size'] - 1)
                                                              ) + reg.intercept_))
         return res, res_expected_c, res_expected_nc
 
@@ -99,7 +100,7 @@ class AdditionalFeatures:
                 if self._params['directed'] else set(self._gnx.neighbors(v))
             neighbor_cc = [(v, cc[v]) for v in neighbors]
             neighbor_cc.sort(key=itemgetter(1), reverse=True)
-            top_neighbors = neighbor_cc[:self._params['clique_size']]
+            top_neighbors = neighbor_cc[:self._params['subgraph_size']]
             dot_excl.append(np.dot(motif_vector, np.transpose(expected_clique)))
             dot_exncl.append(np.dot(motif_vector, np.transpose(expected_non_clique)))
             proj_excl.append(np.vdot(motif_vector, expected_clique) / np.linalg.norm(expected_clique))
@@ -139,13 +140,13 @@ class MotifProbability:
         self._labels = {}
 
     def _build_variations(self):
-        name3 = "3_%sdirected.pkl" % ("" if self._is_directed else "un")
+        name3 = f"3_{'' if self._is_directed else 'un'}directed.pkl"
         variations_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations',
                                        'graph_measures', 'features_algorithms',
                                        'motif_variations')
         path3 = os.path.join(variations_path, name3)
         self._motif3_variations = pickle.load(open(path3, "rb"))
-        name4 = "4_%sdirected.pkl" % ("" if self._is_directed else "un")
+        name4 = f"4_{'' if self._is_directed else 'un'}directed.pkl"
         path4 = os.path.join(variations_path, name4)
         self._motif4_variations = pickle.load(open(path4, "rb"))
 

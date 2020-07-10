@@ -17,13 +17,13 @@ class MotifProbability:
         self._labels = {}
 
     def _build_variations(self):
-        name3 = "3_%sdirected.pkl" % ("" if self._is_directed else "un")
+        name3 = f"3_{'' if self._is_directed else 'un'}directed.pkl"
         variations_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations',
                                        'graph_measures', 'features_algorithms',
                                        'motif_variations')
         path3 = os.path.join(variations_path, name3)
         self._motif3_variations = pickle.load(open(path3, "rb"))
-        name4 = "4_%sdirected.pkl" % ("" if self._is_directed else "un")
+        name4 = f"4_{'' if self._is_directed else 'un'}directed.pkl"
         path4 = os.path.join(variations_path, name4)
         self._motif4_variations = pickle.load(open(path4, "rb"))
 

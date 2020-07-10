@@ -7,18 +7,7 @@ from scipy.stats import mannwhitneyu
 from scipy.spatial.distance import pdist, cdist, squareform
 from sklearn.linear_model import LinearRegression
 from operator import itemgetter
-import sys
 import csv
-
-sys.path.append(os.path.abspath('.'))
-sys.path.append(os.path.abspath('..'))
-sys.path.append(os.path.abspath('../graph_calculations'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_algorithms/accelerated_graph_features'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/features_infra'))
-sys.path.append(os.path.abspath('../graph_calculations/graph_measures/graph_infra'))
-
 from motif_probability_files.motif_probability import MotifProbability
 from graph_builder import GraphBuilder, MotifCalculator
 
@@ -30,8 +19,7 @@ class StatsPlot:
         self._clique_size = clique_size
         self._directed = directed
         if key_name is None:
-            self._key_name = 'n_' + str(self._vertices) + '_p_' + str(self._probability) + '_size_' + str(
-                self._clique_size) + ('_d' if self._directed else '_ud')
+            self._key_name = f"n_{vertices}_p_{probability}_size_{clique_size}_{'d' if directed else 'ud'}"
         else:
             self._key_name = key_name
         if pkl_path is None:
@@ -46,7 +34,7 @@ class StatsPlot:
         self._motif_matrix = None
         self._motif_matrix_and_expected_vectors(motif_choice)
 
-    def _motif_matrix_and_expected_vectors(self, motif_choice):
+    def _motif_matrix_and_expected_vectors(self, motif_choice=None):
         if os.path.exists(os.path.join(self._pkl_path, 'motif4.pkl')):
             motif3 = pickle.load(open(os.path.join(self._pkl_path, 'motif3.pkl'), 'rb'))
             self._motif3_matrix = self._to_matrix(motif3._features)
@@ -178,7 +166,7 @@ class StatsPlot:
             axs[int(int(i) / 2), i % 2].grid()
         plt.savefig(os.path.join(os.getcwd(), 'graph_plots', self._key_name + '_p_motif_given_i.png'))
 
-    def multiple_runs(self, num_runs, motifs):
+    def multiple_runs(self, runs, motifs):
         pkl_path = os.path.join(os.getcwd(), '..', 'graph_calculations', 'pkl')
         run_dir = os.path.join(pkl_path, self._key_name + '_runs')
         if not os.path.exists(run_dir):
@@ -187,7 +175,7 @@ class StatsPlot:
         fig.subplots_adjust(hspace=0.5)
         expected_clique = [self._mp.motif_expected_clique_vertex(motif) for motif in motifs]
         expected_non_clique = [self._mp.motif_expected_non_clique_vertex(motif) for motif in motifs]
-        for run in range(num_runs):
+        for run in runs:
             params = {'vertices': self._vertices, 'probability': self._probability,
                       'clique_size': self._clique_size, 'directed': self._directed,
                       'load_graph': False, 'load_labels': False, 'load_motifs': False}
@@ -195,8 +183,10 @@ class StatsPlot:
             GraphBuilder(params, dir_path)
             self._gnx = pickle.load(open(os.path.join(dir_path, 'gnx.pkl'), 'rb'))
             self._labels = pickle.load(open(os.path.join(dir_path, 'labels.pkl'), 'rb'))
-            mc = MotifCalculator(params, self._gnx, dir_path, gpu=True)
+            mc = MotifCalculator(params, self._gnx, dir_path, gpu=True, device=2)
             motif_matrix = mc.motif_matrix(motif_picking=motifs)
+            if type(self._labels) == list:
+                self._labels = {v: self._labels[v] for v in range(len(self._labels))}
             clique_matrix = motif_matrix[[v for v in self._labels.keys() if self._labels[v]], :]
             non_clique_matrix = motif_matrix[[v for v in self._labels.keys() if not self._labels[v]], :]
             clique_mean = np.mean(clique_matrix, axis=0) if np.size(clique_matrix) else None
@@ -602,8 +592,6 @@ class StatsPlot:
 
     def sum_motifs(self):
         residual_matrix, residual_expected_clique, _ = self._residual()
-        clique_res_matrix = residual_matrix[[v for v in range(self._vertices) if self._labels[v]], :]
-        non_clique_res_matrix = residual_matrix[[v for v in range(self._vertices) if not self._labels[v]], :]
         expected_sum = sum(residual_expected_clique)
         normed_clique_sum = []
         normed_non_clique_sum = []
@@ -736,7 +724,7 @@ class StatsPlot:
         plt.hist([avg_nbr_cc[v] for v in range(self._vertices) if not self._labels[v]], bins, color='r', alpha=0.5,
                  label='non-clique', zorder=1)
         plt.xlabel("< C > over top neighbors")
-        plt.title("< C > over %d neighbors with the largest C" % self._clique_size)
+        plt.title(f"< C > over {self._clique_size} neighbors with the largest C")
         plt.grid(True)
         plt.legend()
         plt.savefig(os.path.join(os.getcwd(), 'graph_plots', self._key_name + '_cc_neighbor.png'))
@@ -809,7 +797,7 @@ class StatsPlot:
         num_runs = len(os.listdir(os.path.join(os.path.join(os.getcwd(), '..', 'graph_calculations', 'pkl', key_name))))
         for run in range(num_runs):
             pkl_path = os.path.join(os.getcwd(), '..', 'graph_calculations', 'pkl', key_name,
-                                    self._key_name + '_run_%d' % run)
+                                    self._key_name + '_run_' + str(run))
             self._gnx = pickle.load(open(os.path.join(pkl_path, 'gnx.pkl'), 'rb'))
             self._labels = pickle.load(open(os.path.join(pkl_path, 'labels.pkl'), 'rb'))
             self._motif_matrix_and_expected_vectors()
@@ -954,7 +942,7 @@ class StatsPlot:
         num_runs = len(os.listdir(os.path.join(os.path.join(os.getcwd(), '..', 'graph_calculations', 'pkl', key_name))))
         for run in range(num_runs):
             pkl_path = os.path.join(os.getcwd(), '..', 'graph_calculations', 'pkl', key_name,
-                                    self._key_name + '_run_%d' % run)
+                                    self._key_name + '_run_' + str(run))
             self._gnx = pickle.load(open(os.path.join(pkl_path, 'gnx.pkl'), 'rb'))
             self._labels = pickle.load(open(os.path.join(pkl_path, 'labels.pkl'), 'rb'))
 
@@ -984,21 +972,21 @@ class StatsPlot:
 
 
 if __name__ == "__main__":
-    # size = 2000
-    size = 1000
-    # pr = 0.5
+    size = 500
+    # size = 1000
     pr = 0.5
-    # cl = 20
+    # pr = 0.5
     cl = 0
-    # sp = StatsPlot(size, pr, cl, True)
+    # cl = 0
+    sp = StatsPlot(size, pr, cl, True, motif_choice=[i for i in range(212)])
     # sp.sum_motifs()
     # mopro = MotifProbability(size, pr, cl, True)
-    for runs in range(4):
-        dir_str = '_ud_'
-        k_name = 'n_' + str(size) + '_p_' + str(pr) + '_size_' + str(cl) + dir_str + 'run_' + str(runs)
-        pkl_pth = os.path.join(os.getcwd(), '..', 'graph_calculations', 'pkl',
-                               'n_' + str(size) + '_p_' + str(pr) + '_size_' + str(cl) + dir_str + 'runs', k_name)
-        sp = StatsPlot(size, pr, cl, False, key_name=k_name, pkl_path=pkl_pth, motif_choice=[0, 1])
+    # for runs in range(4):
+    #     dir_str = '_ud_'
+    #     k_name = 'n_' + str(size) + '_p_' + str(pr) + '_size_' + str(cl) + dir_str + 'run_' + str(runs)
+    #     pkl_pth = os.path.join(os.getcwd(), '..', 'graph_calculations', 'pkl',
+    #                            'n_' + str(size) + '_p_' + str(pr) + '_size_' + str(cl) + dir_str + 'runs', k_name)
+    #     sp = StatsPlot(size, pr, cl, False, key_name=k_name, pkl_path=pkl_pth, motif_choice=[0, 1])
         # sp.comparison_criteria()
         # sp.sum_motifs()
         # sp.big_sum_most_common()
@@ -1006,10 +994,11 @@ if __name__ == "__main__":
         # sp.neighbor_cluster_coeff()
 
         # sp.feature_vs_degree()
-        sp.motif_stats([m3 for m3 in range(6)])
+        # sp.motif_stats([m3 for m3 in range(6)])
         # sp.motif_scatter_updated_vec()
     # sp = StatsPlot(size, pr, cl, True)
     # sp.auc_all_used_measures()
     # sp.auc_avg_neighbor_degree()
     # sp.motif_scatter_updated_vec()
     # sp.motif_stats([m4 for m4 in range(16, 211, 4)])
+    sp.multiple_runs(range(5), motifs=[i for i in range(212)])

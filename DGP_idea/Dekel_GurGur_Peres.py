@@ -8,10 +8,8 @@ import pickle
 import numpy as np
 import networkx as nx
 from scipy.stats import norm
-from itertools import product
 import csv
-import matplotlib.pyplot as plt
-from sklearn.metrics import roc_curve, roc_auc_score
+from sklearn.metrics import roc_auc_score
 
 
 class DekelGurelGurevichPeres:
@@ -23,18 +21,16 @@ class DekelGurelGurevichPeres:
         }
         self.k = self._params['clique_size']
         self.c = self._params['clique_size'] / np.sqrt(self._params['vertices'])
-        self._key_name = 'n_' + str(self._params["vertices"]) + '_p_' + '0.5' + '_size_' + \
-                         str(self._params["clique_size"]) + ('_d' if self._params["directed"] else '_ud')
-        self._head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl',
+        self._key_name = f"n_{v}_p_0.5_size_{cs}_{'d' if d else 'ud'}"
+        self._head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl', 'clique',
                                        self._key_name + '_runs')
         self._load_data()
 
     def _load_data(self):
         graph_ids = os.listdir(self._head_path)
         if len(graph_ids) == 0:
-            raise ValueError('No runs of G(%d, %s) with a clique of %d were saved, and no new runs were requested.'
-                             % (self._params['vertices'], '0.5',
-                                self._params['clique_size']))
+            raise ValueError(f"No runs of G({self._params['vertices']}, 0.5) with a clique of "
+                             f"size {self._params['clique_size']} were saved, and no new runs were requested.")
         self._graphs = []
         self._labels = []
         for run in range(len(graph_ids)):
@@ -87,8 +83,8 @@ class DekelGurelGurevichPeres:
         k_tag = self._get_k_tag(k_tilde, graph)
         k_star = self._get_k_star(k_tag, graph)
 
-        print('After the final stage, %d clique vertices out of %d vertices are left' %
-              (len([v for v in k_star if labels[v]]), len(k_star)))
+        print(f"After the final stage, {len([v for v in k_star if labels[v]])} clique vertices "
+              f"out of {len(k_star)} vertices are left")
         return [1 if v in k_star else 0 for v in graph]
 
     @staticmethod
@@ -157,8 +153,7 @@ class DekelGurelGurevichPeres:
         g_k_tag = nx.induced_subgraph(graph, k_tag)
         vertices = [v for v in g_k_tag]
         degrees = [g_k_tag.degree(v) for v in vertices]
-        degree_order = np.argsort(degrees).tolist()
-        vertices_order = [vertices[v] for v in degree_order]
+        vertices_order = [vertices[v] for v in np.argsort(degrees)]
         return vertices_order[-self.k:]
 
 
