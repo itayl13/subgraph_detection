@@ -1,6 +1,7 @@
 import nni
 import logging
 import argparse
+import __init__
 from graph_calculations import *
 from FFN_clique_detector import ffn_clique
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))

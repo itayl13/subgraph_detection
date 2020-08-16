@@ -8,12 +8,13 @@ from torch.nn.parameter import Parameter
 
 
 class GCN(Module):  # Full GCN structure
-    def __init__(self, n_features, hidden_layers, dropout, activations, p=0.5):
+    def __init__(self, n_features, hidden_layers, dropout, activations, p=0.5, normalization="correct"):
         super(GCN, self).__init__()
         hidden_layers = [n_features] + hidden_layers + [1]    # input_dim, hidden_layer0, ..., hidden_layerN, 1
         self._layers = ModuleList([GraphConvolution(first, second)
                                    for first, second in zip(hidden_layers[:-1], hidden_layers[1:])])
         self._p = p
+        self._normalization = self.normalize if normalization == "correct" else self.normalize_no_correction
         self._alpha = Parameter(torch.tensor(0.), requires_grad=False)
         self._beta = Parameter(torch.tensor(0.), requires_grad=True)
         self._gamma = Parameter(torch.tensor(-1.), requires_grad=True)
@@ -21,7 +22,7 @@ class GCN(Module):  # Full GCN structure
         self._dropout = dropout
 
     def forward(self, x, adj, get_representation=False):
-        adj = self.normalize(adj)
+        adj = self._normalization(adj)
         layers = list(self._layers)
         for i, layer in enumerate(layers[:-1]):
             x = self._activations[i](layer(x, adj))
@@ -32,6 +33,14 @@ class GCN(Module):  # Full GCN structure
     def normalize(self, a):
         a_tilde_diag = torch.eye(a.size(0), dtype=a.dtype, device=a.device) * self._gamma
         a_tilde_off_diag = torch.where(a > 0, (1 - self._p) / self._p * torch.exp(self._alpha), -torch.exp(self._beta))
+        a_tilde_off_diag -= torch.diag(torch.diag(a_tilde_off_diag))
+        a_tilde = (a_tilde_diag + a_tilde_off_diag) * (torch.pow(torch.tensor(a.size(0), dtype=torch.float64), -0.5))
+        # final A: gamma for self-loops, e^alpha for existing edges, -e^beta for absent edges, all normalized by sqrt(N).
+        return a_tilde
+
+    def normalize_no_correction(self, a):
+        a_tilde_diag = torch.eye(a.size(0), dtype=a.dtype, device=a.device) * self._gamma
+        a_tilde_off_diag = torch.where(a > 0, torch.exp(self._alpha), -torch.exp(self._beta))
         a_tilde_off_diag -= torch.diag(torch.diag(a_tilde_off_diag))
         a_tilde = (a_tilde_diag + a_tilde_off_diag) * (torch.pow(torch.tensor(a.size(0), dtype=torch.float64), -0.5))
         # final A: gamma for self-loops, e^alpha for existing edges, -e^beta for absent edges, all normalized by sqrt(N).

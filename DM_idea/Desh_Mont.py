@@ -53,7 +53,7 @@ class DeshpandeMontanari:
 
     def _algorithm(self, graph, labels, t_star):
         # INITIALIZATION #
-        w = nx.to_numpy_matrix(graph)
+        w = nx.to_numpy_array(graph)
         for i, j in permutations(range(w.shape[0]), 2):
             if i != j and w[i, j] == 0:
                 w[i, j] = -1
@@ -66,17 +66,12 @@ class DeshpandeMontanari:
 
         # Belief Propagation iterations #
         for t in range(t_star):
-            gamma_vec = np.zeros((self._params['vertices'],))
-            gamma_mat = np.zeros((self._params['vertices'], self._params['vertices']))
             helping_matrix = np.exp(gamma_matrices[t]) / np.sqrt(self._params['vertices'])
             log_numerator = np.log(1 + np.multiply(1 + w, helping_matrix))
             log_denominator = np.log(1 + helping_matrix)
-            for i in range(self._params['vertices']):
-                gamma_vec[i] = np.log(kappa) + sum([log_numerator[u, i] - log_denominator[u, i]
-                                                    for u in range(self._params['vertices']) if u != i])
-            for i in range(self._params['vertices']):
-                for j in range(self._params['vertices']):
-                    gamma_mat[i, j] = gamma_vec[i] - log_numerator[j, i] + log_denominator[j, i]
+            helping_for_vec = log_numerator - log_denominator
+            gamma_vec = np.log(kappa) + np.sum(helping_for_vec, axis=1) - np.diag(helping_for_vec)
+            gamma_mat = np.tile(gamma_vec, (self._params['vertices'], 1)) - helping_for_vec.transpose()
             gamma_vectors.append(gamma_vec)
             gamma_matrices.append(gamma_mat)
         sorted_vertices = np.argsort(gamma_vectors[t_star])

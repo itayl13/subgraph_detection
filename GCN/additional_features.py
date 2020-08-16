@@ -6,11 +6,10 @@ from sklearn.linear_model import LinearRegression
 from scipy.special import comb
 
 
-# This class is intended to calculate all the additional features we used in the detection trials, for cliques only.
+# This class is intended to calculate all the additional features for clique recovery.
 class AdditionalFeatures:
-    def __init__(self, params, gnx, dir_path, matrix, motifs=None):
+    def __init__(self, params, gnx, matrix, motifs=None):
         self._params = params
-        self._dir_path = dir_path
         self._matrix = matrix
         self._gnx = gnx
         assert params["subgraph"] == "clique", "This class is for cliques only"
@@ -141,9 +140,7 @@ class MotifProbability:
 
     def _build_variations(self):
         name3 = f"3_{'' if self._is_directed else 'un'}directed.pkl"
-        variations_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations',
-                                       'graph_measures', 'features_algorithms',
-                                       'motif_variations')
+        variations_path = os.path.join(os.path.dirname(__file__), 'features_algorithms', 'motif_variations')
         path3 = os.path.join(variations_path, name3)
         self._motif3_variations = pickle.load(open(path3, "rb"))
         name4 = f"4_{'' if self._is_directed else 'un'}directed.pkl"

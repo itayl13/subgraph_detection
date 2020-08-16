@@ -64,8 +64,6 @@ class DekelGurelGurevichPeres:
         t = eps_4 * np.log(self._params['vertices']) / \
             np.log(np.power(self.rho(alpha, beta, eta), 2) / self.tau(alpha, beta))
         t = np.floor(t)
-        s_i = []
-        s_i_tilde = []
         v_i = [v for v in range(len(labels))]
 
         # First Stage #
@@ -101,7 +99,8 @@ class DekelGurelGurevichPeres:
         return (1 - alpha) * self.phi_bar(beta)
 
     def rho(self, alpha, beta, eta):
-        return (1 - alpha) * self.phi_bar(beta - max(self.c, 1.261) * self.delta(alpha, eta) / np.sqrt(self.gamma(alpha, eta)))
+        return (1 - alpha) * self.phi_bar(
+            beta - max(self.c, 1.261) * self.delta(alpha, eta) / np.sqrt(self.gamma(alpha, eta)))
 
     @staticmethod
     def _choose_s_i(v, alpha):
@@ -160,7 +159,8 @@ class DekelGurelGurevichPeres:
 def performance_test_dgp():
     with open('DGP_algorithm_testing_easy.csv', 'w') as f:
         wr = csv.writer(f)
-        wr.writerow(['Graph Size (all undirected)', 'Clique Size', 'Mean remaining clique vertices %', 'AUC on all runs'])
+        wr.writerow(
+            ['Graph Size (all undirected)', 'Clique Size', 'Mean remaining clique vertices %', 'AUC on all runs'])
         # for sz, cl_sz in product([500], range(10, 23)):
         # for sz, cl_sz in product([2000], range(12, 45)):
         for sz, cl_sz in [(100, 12), (50, 10)]:
@@ -170,8 +170,8 @@ def performance_test_dgp():
             auc = roc_auc_score(lbs, scores)
             remaining_clique_vertices = []
             for r in range(len(lbs) // sz):
-                ranks_by_run = scores[r*sz:(r+1)*sz]
-                labels_by_run = lbs[r*sz:(r+1)*sz]
+                ranks_by_run = scores[r * sz:(r + 1) * sz]
+                labels_by_run = lbs[r * sz:(r + 1) * sz]
                 sorted_vertices_by_run = np.argsort(ranks_by_run)
                 c_n_hat_by_run = sorted_vertices_by_run[-cl_sz:]
                 remaining_clique_vertices.append(len([v for v in c_n_hat_by_run if labels_by_run[v]]))

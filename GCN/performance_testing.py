@@ -21,7 +21,8 @@ PARAMS = {  # Best parameters found. Tested on several sizes, subgraphs and edge
     "regularization": 0.0005,
     "optimizer": Adam,
     "activation": relu,
-    "early_stop": True
+    "early_stop": True,
+    "edge_normalization": "correct"
 }
 
 
@@ -123,7 +124,7 @@ def performance_test_gcn(filename, sizes, subgraph, other_params=None, dump=Fals
             params.update(upd_params)
             gcn = GCNSubgraphDetector(sz, p, sg_sz, True if subgraph == "dag-clique" else False, features=params["features"], subgraph=subgraph)
             test_scores, test_lbs, eval_scores, eval_lbs, train_scores, train_lbs, \
-                _, _, _, _, _, _, _, _, _, _, _, _ = gcn.single_implementation_new_loss(input_params=params, check='CV')
+                _, _, _, _, _, _, _, _, _, _, _, _ = gcn.single_implementation(input_params=params, check='CV')
 
             if dump:
                 dir_path = os.path.join(os.path.dirname(__file__), 'model_outputs', subgraph, filename)
@@ -429,30 +430,38 @@ def _performance_df_func(df):
     return df
 
 
-if __name__ == "__main__":
-    # trial_keys = {
-    #     "wb1p0": {"unary": "bce", "c1": 1., "c2": 1., "c3": 0.},         # weighted BCE + pairwise loss + 0
-    #     "wb0.1p0": {"unary": "bce", "c1": 1., "c2": 0.1, "c3": 0.},      # weighted BCE + 0.1 * pairwise loss + 0
-    #     "wbk-1p0": {"unary": "bce", "c1": 1., "c2": "k", "c3": 0.},      # weighted BCE + 1/k * pairwise loss + 0
-    #     "wbk-1pb": {"unary": "bce", "c1": 1., "c2": "k", "c3": 1.},      # weighted BCE + 1/k * pairwise loss + binomial regularization
-    #     "wbk-0.5pb": {"unary": "bce", "c1": 1., "c2": "sqk", "c3": 1.},  # weighted BCE + 1/sqrt(k) * pairwise loss + binomial regularization
-    #     "wm1p0": {"unary": "mse", "c1": 1., "c2": 1., "c3": 0.},         # weighted MSE + pairwise loss + 0
-    #     "wm1pb": {"unary": "mse", "c1": 1., "c2": 1., "c3": 1.},         # weighted MSE + pairwise loss + binomial regression
-    #     "wmk-1pb": {"unary": "mse", "c1": 1., "c2": "k", "c3": 1.},      # weighted MSE + 1/k * pairwise loss + binomial regression
-    #     "wmk-0.5pb": {"unary": "mse", "c1": 1., "c2": "sqk", "c3": 1.},  # weighted MSE + 1/sqrt(k) * pairwise loss + binomial regression
-    #     "01pb": {"unary": "bce", "c1": 1., "c2": 1., "c3": 0.},          # pairwise loss + binomial regularization
-    #     "0k-1pb": {"unary": "bce", "c1": 0., "c2": "k", "c3": 1.}        # 1/k * pairwise loss + binomial regularization
-    # }
-    trial_keys = {
-        "GCN_new_adj": {"unary": "bce", "c1": 1., "c2": 0., "c3": 0.},                   # weighted BCE only
-    }
-    # for key, value in trial_keys.items():
-    #     print(key)
-    #     for sub, n_cs in zip(["clique", "biclique"], [product([500], range(6, 21)), product([500], range(10, 41))]):
-    #         print(sub)
-    #         # new_loss_roc(n_cs, midname=key, other_params=value)
-    #         performance_test_gcn(key, n_cs, loss='new', other_params=value, dump=True, subgraph=sub, p=0.4)
+# if __name__ == "__main__":
+#     # trial_keys = {
+#     #     "wb1p0": {"unary": "bce", "c1": 1., "c2": 1., "c3": 0.},         # weighted BCE + pairwise loss + 0
+#     #     "wb0.1p0": {"unary": "bce", "c1": 1., "c2": 0.1, "c3": 0.},      # weighted BCE + 0.1 * pairwise loss + 0
+#     #     "wbk-1p0": {"unary": "bce", "c1": 1., "c2": "k", "c3": 0.},      # weighted BCE + 1/k * pairwise loss + 0
+#     #     "wbk-1pb": {"unary": "bce", "c1": 1., "c2": "k", "c3": 1.},      # weighted BCE + 1/k * pairwise loss + binomial regularization
+#     #     "wbk-0.5pb": {"unary": "bce", "c1": 1., "c2": "sqk", "c3": 1.},  # weighted BCE + 1/sqrt(k) * pairwise loss + binomial regularization
+#     #     "wm1p0": {"unary": "mse", "c1": 1., "c2": 1., "c3": 0.},         # weighted MSE + pairwise loss + 0
+#     #     "wm1pb": {"unary": "mse", "c1": 1., "c2": 1., "c3": 1.},         # weighted MSE + pairwise loss + binomial regression
+#     #     "wmk-1pb": {"unary": "mse", "c1": 1., "c2": "k", "c3": 1.},      # weighted MSE + 1/k * pairwise loss + binomial regression
+#     #     "wmk-0.5pb": {"unary": "mse", "c1": 1., "c2": "sqk", "c3": 1.},  # weighted MSE + 1/sqrt(k) * pairwise loss + binomial regression
+#     #     "01pb": {"unary": "bce", "c1": 0., "c2": 1., "c3": 1.},          # pairwise loss + binomial regularization
+#     #     "0k-1pb": {"unary": "bce", "c1": 0., "c2": "k", "c3": 1.}        # 1/k * pairwise loss + binomial regularization
+#     # }
+#     trial_keys = {
+#         "GCN_new_adj": {"unary": "bce", "c1": 1., "c2": 0., "c3": 0.},                   # weighted BCE only
+#     }
+#     # for key, value in trial_keys.items():
+#     #     print(key)
+#     #     for sub, n_cs in zip(["clique", "biclique"], [product([500], range(6, 21)), product([500], range(10, 41))]):
+#     #         print(sub)
+#     #         # new_loss_roc(n_cs, midname=key, other_params=value)
+#     #         performance_test_gcn(key, n_cs, loss='new', other_params=value, dump=True, subgraph=sub, p=0.4)
+#
+#     for sub, n_cs in zip(["clique", "biclique"], [product([500], range(6, 21)), product([500], range(10, 41))]):
+#         print(sub)
+#         dm_compare("GCN_new_adj", "GCN", subgraph=sub, p=0.4)
 
-    for sub, n_cs in zip(["clique", "biclique"], [product([500], range(6, 21)), product([500], range(10, 41))]):
-        print(sub)
-        dm_compare("GCN_new_adj", "GCN", subgraph=sub, p=0.4)
+if __name__ == '__main__':
+    trial_keys = {
+        "wm1pb": {"unary": "mse", "c1": 1., "c2": 1., "c3": 1.}
+    }
+    for key, value in trial_keys.items():
+        print(key)
+        performance_test_gcn(key, product([500], range(10, 23)), "clique", other_params=value, dump=True)

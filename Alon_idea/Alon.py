@@ -55,7 +55,7 @@ class Alon:
     def _algorithm_a(self, graph, labels):
         # INITIALIZATION #
         w = nx.to_numpy_matrix(graph)
-        eigval, eigvec = eigh(w, eigvals=(len(labels) - 2, len(labels) - 2))
+        _, eigvec = eigh(w, eigvals=(len(labels) - 2, len(labels) - 2))
         indices_order = np.argsort(np.abs(eigvec).ravel()).tolist()
         first_subset = indices_order[-self._params['clique_size']:]
         q = [v for v in range(len(labels)) if self._check_neighbors_a(v, first_subset, graph)]

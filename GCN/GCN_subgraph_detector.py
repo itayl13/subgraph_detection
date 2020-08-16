@@ -2,13 +2,13 @@ import numpy as np
 import pickle
 from sklearn.preprocessing import StandardScaler
 import torch
-from GCN import *
+from __init__ import *
 from graph_for_gcn_builder import GraphBuilder, FeatureCalculator
 import gcn
 
 
 class GCNSubgraphDetector:
-    def __init__(self, v, p, sg, d, features, subgraph="clique", new_runs=0, nni=False):
+    def __init__(self, v, p, sg, d, features, subgraph="clique", new_runs=0, nni=False, device=1):
         self._params = {
             'vertices': v,
             'probability': p,
@@ -25,6 +25,7 @@ class GCNSubgraphDetector:
         self._key_name = (subgraph, f"n_{v}_p_{p}_size_{sg}_{'d' if d else 'ud'}")
         self._head_path = os.path.join(os.path.dirname(__file__), '..', 'graph_calculations', 'pkl',
                                        subgraph, self._key_name[1] + '_runs')
+        self._device = device
         self._load_data()
         self._nni = nni
 
@@ -44,7 +45,7 @@ class GCNSubgraphDetector:
             gnx = data.graph()
             labels = data.labels()
 
-            fc = FeatureCalculator(self._params, gnx, dir_path, self._params['features'], gpu=True, device=0)
+            fc = FeatureCalculator(self._params, gnx, dir_path, self._params['features'], gpu=True, device=self._device)
             self._adjacency_matrices.append(fc.adjacency_matrix)
             self._feature_matrices.append(fc.feature_matrix)
             if type(labels) == dict:
@@ -66,8 +67,8 @@ class GCNSubgraphDetector:
             _ = gcn.main_gcn(feature_matrices=self._feature_matrices, adj_matrices=self._adjacency_matrices,
                              labels=self._labels, hidden_layers=[425, 225, 40], epochs=30, dropout=0.02, lr=0.044949,
                              l2_pen=0.216205, coeffs=[1., 0., 0.], unary="bce", iterations=2, dumping_name=self._key_name,
-                             early_stop=True, optimizer=torch.optim.Adam, activation=torch.relu, graph_params=self._params,
-                             is_nni=self._nni)
+                             early_stop=True, edge_normalization="correct", optimizer=torch.optim.Adam, activation=torch.relu,
+                             graph_params=self._params, is_nni=self._nni, device=self._device)
 
         else:
             _ = gcn.main_gcn(feature_matrices=self._feature_matrices, adj_matrices=self._adjacency_matrices,
@@ -75,9 +76,9 @@ class GCNSubgraphDetector:
                              epochs=input_params["epochs"], dropout=input_params["dropout"], lr=input_params["lr"],
                              l2_pen=input_params["regularization"], coeffs=input_params["coeffs"],
                              unary=input_params["unary"], iterations=3, dumping_name=self._key_name,
-                             early_stop=input_params["early_stop"], optimizer=input_params["optimizer"],
-                             activation=input_params["activation"],
-                             graph_params=self._params, is_nni=self._nni)
+                             edge_normalization=input_params["edge_normalization"], early_stop=input_params["early_stop"],
+                             optimizer=input_params["optimizer"], activation=input_params["activation"],
+                             graph_params=self._params, is_nni=self._nni, device=self._device)
         return
 
     def single_implementation(self, input_params, check='split'):
@@ -93,11 +94,13 @@ class GCNSubgraphDetector:
             coeffs=input_params["coeffs"],
             unary=input_params["unary"],
             iterations=3, dumping_name=self._key_name,
+            edge_normalization=input_params["edge_normalization"],
             optimizer=input_params["optimizer"],
             activation=input_params["activation"],
             early_stop=input_params["early_stop"],
             graph_params=self._params,
-            check=check)
+            check=check,
+            device=self._device)
         return aggregated_results
 
     def all_labels_to_pkl(self):
@@ -122,6 +125,7 @@ if __name__ == "__main__":
         "regularization": 0.0005,
         "optimizer": torch.optim.Adam,
         "activation": torch.relu,
+        "edge_normalization": "correct",
         "early_stop": True
     }
     gg = GCNSubgraphDetector(2000, 0.5, 33, False, features=['Motif_3'])

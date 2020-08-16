@@ -1,11 +1,10 @@
 import datetime
-
 import networkx as nx
 import numpy as np
 import itertools
 import pickle
 import torch
-from GCN import *
+from __init__ import *
 from graph_calculations import *
 from betweenness_centrality import BetweennessCentralityCalculator
 from accelerated_graph_features.bfs_moments import BfsMomentsCalculator
@@ -93,7 +92,7 @@ class PlantSubgraph:
 
     def _plant_biclique(self):
         first, second = np.array_split(self._subgraph_vertices, 2)
-        ebunch = [(int(one), int(two)) for one, two in product(first, second)]
+        ebunch = [(int(one), int(two)) for one, two in itertools.product(first, second)]
         self._graph.add_edges_from(ebunch)
 
     def _plant_gkp(self, q):
@@ -152,7 +151,7 @@ class GraphBuilder:
 
 
 class FeatureCalculator:
-    def __init__(self, params, graph, dir_path, features, gpu=False,  device=2, report=False):
+    def __init__(self, params, graph, dir_path, features, gpu=False,  device=2):
         self._params = params
         self._graph = graph
         self._dir_path = dir_path
@@ -169,7 +168,6 @@ class FeatureCalculator:
         }
         self._gpu = gpu
         self._device = device
-        self._report = report
         if "Motif_3" in features and "Motif_4" in features:
             self._motif_choice = "All_Motifs"
         elif "Motif_3" in features and "Motif_4" not in features:
@@ -286,8 +284,7 @@ class FeatureCalculator:
                 mp = MotifProbability(self._params['vertices'], self._params['probability'],
                                       self._params['subgraph_size'], self._params['directed'])
                 motif3_count = 1 + mp.get_3_clique_motifs(3)[-1]  # The full 3 clique is the last motif 3.
-                add_ftrs = AdditionalFeatures(self._params, self._graph, self._dir_path, motif_matrix,
-                                              motifs=list(range(motif3_count)))
+                add_ftrs = AdditionalFeatures(self._params, self._graph, motif_matrix, motifs=list(range(motif3_count)))
             else:
                 motif_matrix = np.hstack((pickle.load(open(os.path.join(self._dir_path, "Motif_3.pkl"), "rb")),
                                           pickle.load(open(os.path.join(self._dir_path, "Motif_4.pkl"), "rb"))))
@@ -295,8 +292,7 @@ class FeatureCalculator:
                                       self._params['subgraph_size'], self._params['directed'])
                 motif3_count = 1 + mp.get_3_clique_motifs(3)[-1]  # The full 3 clique is the last motif 3.
                 motif4_count = 1 + mp.get_3_clique_motifs(4)[-1]  # The full 4 clique is the last motif 4.
-                add_ftrs = AdditionalFeatures(self._params, self._graph, self._dir_path, motif_matrix,
-                                              motifs=list(range(motif3_count, motif4_count)))
+                add_ftrs = AdditionalFeatures(self._params, self._graph, motif_matrix, motifs=list(range(motif3_count, motif4_count)))
         return self._log_norm(add_ftrs.calculate_extra_ftrs())
 
     @staticmethod

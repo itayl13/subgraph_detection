@@ -15,14 +15,15 @@ matplotlib.use('Agg')
 
 
 class ModelRunner:
-    def __init__(self, conf, logger, weights, graph_params, early_stop=True, is_nni=False):
+    def __init__(self, conf, logger, weights, graph_params, early_stop=True, is_nni=False, tmp_path="", device=1):
         self._logger = logger
         self._conf = conf
         self._weights_dict = weights
         self._early_stop = early_stop
         self._graph_params = graph_params
         self._is_nni = is_nni
-        self._device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
+        self._device = torch.device(f'cuda:{device}') if torch.cuda.is_available() else torch.device('cpu')
+        self._tmp_path = tmp_path  # Path where the logs are saved. We save the best model state there.
 
     def _build_weighted_loss(self, labels):
         weights_list = []
@@ -55,7 +56,8 @@ class ModelRunner:
     def _get_model(self):
         model = GCN(n_features=self._conf["training_mat"][0].shape[1],
                     hidden_layers=self._conf["hidden_layers"],
-                    dropout=self._conf["dropout"], activations=self._conf["activations"], p=self._graph_params["probability"])
+                    dropout=self._conf["dropout"], activations=self._conf["activations"],
+                    p=self._graph_params["probability"], normalization=self._conf["edge_normalization"])
         opt = self._conf["optimizer"](model.parameters(), lr=self._conf["lr"], weight_decay=self._conf["weight_decay"])
 
         training_mats, training_adjs, training_labels, eval_mats, eval_adjs, eval_labels, \
@@ -142,17 +144,18 @@ class ModelRunner:
             if epoch >= 10 and self._early_stop:  # Check for early stopping during training.
                 if min_loss is None:
                     min_loss = min(eval_results["all_loss"])
-                    torch.save(model["model"].state_dict(), "tmp.pt")  # Save the best state.
+                    torch.save(model["model"].state_dict(), os.path.join(self._tmp_path, "tmp.pt"))  # Save the best state.
                 elif eval_res["all_loss"] < min_loss:
                     min_loss = min(eval_results["all_loss"])
-                    torch.save(model["model"].state_dict(), "tmp.pt")  # Save the best state
+                    torch.save(model["model"].state_dict(), os.path.join(self._tmp_path, "tmp.pt"))  # Save the best state
                     counter = 0
                 else:
                     counter += 1
                     if counter >= 40:  # Patience for learning
                         break
-        model["model"].load_state_dict(torch.load("tmp.pt"))  # After stopping early, our model is the one with the best eval loss.
-        os.remove("tmp.pt")
+        # After stopping early, our model is the one with the best eval loss.
+        model["model"].load_state_dict(torch.load(os.path.join(self._tmp_path, "tmp.pt")))
+        os.remove(os.path.join(self._tmp_path, "tmp.pt"))
         return epochs_done, np.vstack((output, training_labels)), training_results, eval_results, test_results
 
     def _train(self, epoch, model, verbose=2):
@@ -282,7 +285,8 @@ def execute_runner(runners, is_nni=False):
 def build_model(training_data, training_adj, training_labels, eval_data, eval_adj, eval_labels,
                 test_data, test_adj, test_labels,
                 hidden_layers, activations, optimizer, epochs, dropout, lr, l2_pen, coeffs, unary,
-                class_weights, graph_params, dumping_name, early_stop=True, is_nni=False):
+                class_weights, graph_params, dumping_name, edge_normalization="correct", early_stop=True, is_nni=False,
+                device=1):
     if coeffs is None:
         coeffs = [1., 0., 0.]
     conf = {"hidden_layers": hidden_layers, "dropout": dropout, "lr": lr, "weight_decay": l2_pen,
@@ -290,7 +294,7 @@ def build_model(training_data, training_adj, training_labels, eval_data, eval_ad
             "eval_mat": eval_data, "eval_adj": eval_adj, "eval_labels": eval_labels,
             "test_mat": test_data, "test_adj": test_adj, "test_labels": test_labels,
             "optimizer": optimizer, "epochs": epochs, "activations": activations,
-            "loss_coeffs": coeffs, "unary": unary}
+            "loss_coeffs": coeffs, "unary": unary, "edge_normalization": edge_normalization}
 
     products_path = os.path.join(os.getcwd(), "logs", *dumping_name, time.strftime("%Y%m%d_%H%M%S"))
     if not os.path.exists(products_path):
@@ -301,14 +305,14 @@ def build_model(training_data, training_adj, training_labels, eval_data, eval_ad
         FileLogger("results_" + dumping_name[1], path=products_path, level=logging.INFO)], name=None)
 
     runner = ModelRunner(conf, logger=logger, weights=class_weights, graph_params=graph_params,
-                         early_stop=early_stop, is_nni=is_nni)
+                         early_stop=early_stop, is_nni=is_nni, tmp_path=products_path, device=device)
     return runner
 
 
 def main_gcn(feature_matrices, adj_matrices, labels, hidden_layers,
              graph_params, optimizer=optim.Adam, activation=torch.nn.functional.relu,
              epochs=300, dropout=0.4, lr=0.005, l2_pen=0.0005, coeffs=None, unary="bce", iterations=3,
-             dumping_name='', early_stop=True, is_nni=False):
+             dumping_name='', edge_normalization="correct", early_stop=True, is_nni=False, device=1):
 
     class_weights = {0: (float(graph_params['vertices']) / (graph_params['vertices'] - graph_params['subgraph_size'])),
                      1: (float(graph_params['vertices']) / graph_params['subgraph_size'])}
@@ -339,7 +343,8 @@ def main_gcn(feature_matrices, adj_matrices, labels, hidden_layers,
                              test_features, test_adj, test_labels,
                              hidden_layers, activations, optimizer, epochs, dropout, lr,
                              l2_pen, coeffs, unary, class_weights, graph_params, dumping_name,
-                             early_stop=early_stop, is_nni=is_nni)
+                             edge_normalization=edge_normalization, early_stop=early_stop, is_nni=is_nni,
+                             device=device)
         runners.append(runner)
     res = execute_runner(runners, is_nni=is_nni)
     return res
@@ -391,7 +396,8 @@ def execute_runner_for_performance(runners):
 def gcn_for_performance_test(feature_matrices, adj_matrices, labels, hidden_layers,
                              graph_params, optimizer=optim.Adam, activation=torch.nn.functional.relu,
                              epochs=200, dropout=0.3, lr=0.01, l2_pen=0.005, coeffs=None, unary="mse",
-                             iterations=3, dumping_name='', early_stop=True, check='split'):
+                             iterations=3, dumping_name='', edge_normalization="correct", early_stop=True, check='split',
+                             device=1):
     class_weights = {0: (float(graph_params['vertices']) / (graph_params['vertices'] - graph_params['subgraph_size'])),
                      1: (float(graph_params['vertices']) / graph_params['subgraph_size'])}
     runners = []
@@ -420,7 +426,8 @@ def gcn_for_performance_test(feature_matrices, adj_matrices, labels, hidden_laye
                                  test_features, test_adj, test_labels,
                                  hidden_layers, activations, optimizer, epochs, dropout, lr,
                                  l2_pen, coeffs, unary, class_weights, graph_params, dumping_name,
-                                 early_stop=early_stop, is_nni=False)
+                                 edge_normalization=edge_normalization, early_stop=early_stop, is_nni=False,
+                                 device=device)
             runners.append(runner)
     elif check == 'CV':
         # 5-Fold CV, one fold (4 graphs) for test graphs, one fold for eval and the rest are training.
@@ -452,7 +459,8 @@ def gcn_for_performance_test(feature_matrices, adj_matrices, labels, hidden_laye
                                  test_features, test_adj, test_labels,
                                  hidden_layers, activations, optimizer, epochs, dropout, lr,
                                  l2_pen, coeffs, unary, class_weights, graph_params, dumping_name,
-                                 early_stop=early_stop, is_nni=False)
+                                 edge_normalization=edge_normalization, early_stop=early_stop, is_nni=False,
+                                 device=device)
             runners.append(runner)
     else:
         raise ValueError(f"Wrong value for 'check', {check}")
